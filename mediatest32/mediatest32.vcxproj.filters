@@ -1,0 +1,155 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="codec">
+      <UniqueIdentifier>{872d2763-1d95-48ab-a83b-d42047033d18}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="video">
+      <UniqueIdentifier>{f3923a54-f808-4a56-86cd-3056863f35fe}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="mediatest32.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\cmd_options.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\common_directx.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\common_utils.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\common_utils_windows.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\simple_decode_vmem.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\simple_encode_vmem_async.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\BaseWnd.cpp">
+      <Filter>video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\D3D9Renderer.cpp">
+      <Filter>video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\D3DPsVideoProcessor.cpp">
+      <Filter>video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\GlobalFun.cpp">
+      <Filter>video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\ImageTool.cpp">
+      <Filter>video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\MFVidCapture.cpp">
+      <Filter>video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\NativeMedia.cpp">
+      <Filter>video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\ResourceHelper.cpp">
+      <Filter>video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\Stdafx.cpp">
+      <Filter>video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\VideoHWND.cpp">
+      <Filter>video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\VideoManager.cpp">
+      <Filter>video</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\NativeMedia\codec\cmd_options.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\common_directx.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\common_utils.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\AutoLock.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\BaseWnd.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\BlockingQueue.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\CamControl.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\ComPtrDefs.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\D3D9Renderer.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\D3DPsVideoProcessor.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\DeviceEvents.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\GlobalFun.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\ImageTool.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\Looper.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\MFVidCapture.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\MultipleBuffering.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\NativeMedia.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\NativeMediaCallbacks.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\NativeMediaLog.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\ResourceHelper.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\Stdafx.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\VideoHWND.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\VideoManager.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\Win32Event.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\WinRTCSDKTypes.h">
+      <Filter>video</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

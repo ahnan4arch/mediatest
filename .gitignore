@@ -1,0 +1,15 @@
+Debug
+Release
+ipch
+*.opensdf
+*.sdf
+*.suo
+Output
+*.pdb
+*.user
+*.bak
+*.vspx
+*.orig
+*.ilk
+buildnumber.txt
+Production
