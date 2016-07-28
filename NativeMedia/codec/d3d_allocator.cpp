@@ -7,8 +7,8 @@ accordance with the terms of that agreement
 Copyright(c) 2008-2014 Intel Corporation. All Rights Reserved.
 
 **********************************************************************************/
+#include "stdafx.h"
 
-#include "mfx_samples_config.h"
 #include "sample_defs.h"
 
 #if defined(_WIN32) || defined(_WIN64)

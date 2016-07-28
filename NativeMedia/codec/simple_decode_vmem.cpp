@@ -20,7 +20,7 @@ static void usage(CmdOptionsCtx* ctx)
         "Usage: %s [options] INPUT [OUTPUT]\n", ctx->program);
 }
 
-int main(int argc, char** argv)
+int decode_main(int argc, char** argv)
 {
     mfxStatus sts = MFX_ERR_NONE;
     bool bEnableOutput; // if true, removes all YUV file writing

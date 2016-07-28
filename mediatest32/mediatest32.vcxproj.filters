@@ -74,6 +74,45 @@
     <ClCompile Include="..\NativeMedia\VideoManager.cpp">
       <Filter>video</Filter>
     </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\base_allocator.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\d3d_allocator.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\pipeline_decode.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\pipeline_encode.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\pipeline_region_encode.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\pipeline_user.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\sample_decode.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\sample_encode.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\sysmem_allocator.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\avc_bitstream.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\avc_nal_spl.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\avc_spl.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\sample_utils.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\NativeMedia\codec\cmd_options.h">
@@ -150,6 +189,57 @@
     </ClInclude>
     <ClInclude Include="..\NativeMedia\WinRTCSDKTypes.h">
       <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\base_allocator.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\d3d_allocator.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\pipeline_decode.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\pipeline_encode.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\pipeline_region_encode.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\pipeline_user.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\sysmem_allocator.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\sample_defs.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\sample_params.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\sample_types.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\sample_utils.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\avc_bitstream.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\avc_headers.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\avc_nal_spl.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\avc_spl.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\avc_structures.h">
+      <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\abstract_splitter.h">
+      <Filter>codec</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

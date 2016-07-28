@@ -21,7 +21,7 @@ static void usage(CmdOptionsCtx* ctx)
         "Usage: %s [options] [INPUT] [OUTPUT]\n", ctx->program);
 }
 
-int main(int argc, char** argv)
+int encode_main(int argc, char** argv)
 {
     mfxStatus sts = MFX_ERR_NONE;
     bool bEnableInput;  // if true, removes all YUV file reading (which is replaced by pre-initialized surface data). Workload runs for 1000 frames.

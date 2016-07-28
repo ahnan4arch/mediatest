@@ -7,6 +7,7 @@ accordance with the terms of that agreement
 Copyright(c) 2008-2012 Intel Corporation. All Rights Reserved.
 
 \* ****************************************************************************** */
+#include "stdafx.h"
 
 #include <assert.h>
 #include <algorithm>
