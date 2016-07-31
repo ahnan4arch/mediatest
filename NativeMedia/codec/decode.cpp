@@ -1,18 +1,7 @@
-/*********************************************************************************
 
-INTEL CORPORATION PROPRIETARY INFORMATION
-This software is supplied under the terms of a license agreement or nondisclosure
-agreement with Intel Corporation and may not be copied or disclosed except in
-accordance with the terms of that agreement.
-This sample was distributed or derived from the Intel's Media Samples package.
-The original version of this sample may be obtained from https://software.intel.com/en-us/intel-media-server-studio
-or https://software.intel.com/en-us/media-client-solutions-support.
-Copyright(c) 2005-2015 Intel Corporation. All Rights Reserved.
-
-**********************************************************************************/
 #include "stdafx.h"
 
-#include "pipeline_decode.h"
+#include "decode_pipeline.h"
 #include <sstream>
 
 void PrintHelp(msdk_char *strAppName, const msdk_char *strErrorMessage)
@@ -54,56 +43,28 @@ void PrintHelp(msdk_char *strAppName, const msdk_char *strErrorMessage)
     msdk_printf(MSDK_STRING("   [-p010]\n"));
     msdk_printf(MSDK_STRING("   [-a2rgb10]\n"));
     msdk_printf(MSDK_STRING("\n"));
-#if D3D_SURFACES_SUPPORT
-    msdk_printf(MSDK_STRING("   [-d3d]                    - work with d3d9 surfaces\n"));
+
+	msdk_printf(MSDK_STRING("   [-d3d]                    - work with d3d9 surfaces\n"));
     msdk_printf(MSDK_STRING("   [-d3d11]                  - work with d3d11 surfaces\n"));
     msdk_printf(MSDK_STRING("   [-r]                      - render decoded data in a separate window \n"));
-    msdk_printf(MSDK_STRING("   [-wall w h n m t tmo]     - same as -r, and positioned rendering window in a particular cell on specific monitor \n"));
-    msdk_printf(MSDK_STRING("       w                     - number of columns of video windows on selected monitor\n"));
-    msdk_printf(MSDK_STRING("       h                     - number of rows of video windows on selected monitor\n"));
-    msdk_printf(MSDK_STRING("       n(0,.,w*h-1)          - order of video window in table that will be rendered\n"));
-    msdk_printf(MSDK_STRING("       m(0,1..)              - monitor id \n"));
-    msdk_printf(MSDK_STRING("       t(0/1)                - enable/disable window's title\n"));
-    msdk_printf(MSDK_STRING("       tmo                   - timeout for -wall option\n"));
     msdk_printf(MSDK_STRING("Screen capture parameters:\n"));
     msdk_printf(MSDK_STRING("   [-scr:w]                  - screen resolution width\n"));
     msdk_printf(MSDK_STRING("   [-scr:h]                  - screen resolution height\n"));
     msdk_printf(MSDK_STRING("\n"));
 
-#endif
-#if defined(LIBVA_SUPPORT)
-    msdk_printf(MSDK_STRING("   [-vaapi]                  - work with vaapi surfaces\n"));
-#endif
-#if defined(LIBVA_X11_SUPPORT)
-    msdk_printf(MSDK_STRING("   [-r]                      - render decoded data in a separate X11 window \n"));
-#endif
-#if defined(LIBVA_WAYLAND_SUPPORT)
-    msdk_printf(MSDK_STRING("   [-rwld]                   - render decoded data in a Wayland window \n"));
-    msdk_printf(MSDK_STRING("   [-perf]                   - turn on asynchronous flipping for Wayland rendering \n"));
-#endif
-#if defined(LIBVA_DRM_SUPPORT)
-    msdk_printf(MSDK_STRING("   [-rdrm]                   - render decoded data in a thru DRM frame buffer\n"));
-    msdk_printf(MSDK_STRING("   [-window x y w h]\n"));
-#endif
+
     msdk_printf(MSDK_STRING("   [-low_latency]            - configures decoder for low latency mode (supported only for H.264 and JPEG codec)\n"));
     msdk_printf(MSDK_STRING("   [-calc_latency]           - calculates latency during decoding and prints log (supported only for H.264 and JPEG codec)\n"));
     msdk_printf(MSDK_STRING("   [-async]                  - depth of asynchronous pipeline. default value is 4. must be between 1 and 20\n"));
     msdk_printf(MSDK_STRING("   [-no_gpu_copy]            - disable GPU Copy functionality\n"));
-#if !defined(_WIN32) && !defined(_WIN64)
-    msdk_printf(MSDK_STRING("   [-threads_num]            - number of mediasdk task threads\n"));
-    msdk_printf(MSDK_STRING("   [-threads_schedtype]      - scheduling type of mediasdk task threads\n"));
-    msdk_printf(MSDK_STRING("   [-threads_priority]       - priority of mediasdk task threads\n"));
-    msdk_printf(MSDK_STRING("\n"));
-    msdk_thread_printf_scheduling_help();
-#endif
-#if defined(_WIN32) || defined(_WIN64)
+
     msdk_printf(MSDK_STRING("   [-jpeg_rotate n]          - rotate jpeg frame n degrees \n"));
     msdk_printf(MSDK_STRING("       n(90,180,270)         - number of degrees \n"));
 
     msdk_printf(MSDK_STRING("\nFeatures: \n"));
     msdk_printf(MSDK_STRING("   Press 1 to toggle fullscreen rendering on/off\n"));
-#endif
-    msdk_printf(MSDK_STRING("\n"));
+
+	msdk_printf(MSDK_STRING("\n"));
     msdk_printf(MSDK_STRING("Example:\n"));
     msdk_printf(MSDK_STRING("  %s h265 -i in.bit -o out.yuv -p 15dd936825ad475ea34e35f3f54217a6\n"), strAppName);
 }
@@ -120,9 +81,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
 
     // set default implementation
     pParams->bUseHWLib = true;
-#if defined(LIBVA_SUPPORT)
-    pParams->libvaBackend = MFX_LIBVA_DRM;
-#endif
 
     for (mfxU8 i = 1; i < nArgNum; i++)
     {
@@ -139,11 +97,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
                 PrintHelp(strInput[0], MSDK_STRING("Unsupported codec"));
                 return MFX_ERR_UNSUPPORTED;
             }
-            if (pParams->videoType == CODEC_MVC)
-            {
-                pParams->videoType = MFX_CODEC_AVC;
-                pParams->bIsMVC = true;
-            }
             continue;
         }
 
@@ -155,7 +108,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
         {
             pParams->bUseHWLib = true;
         }
-#if D3D_SURFACES_SUPPORT
         else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-d3d")))
         {
             pParams->memType = D3D9_MEMORY;
@@ -171,92 +123,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
             if (SYSTEM_MEMORY == pParams->memType)
                 pParams->memType = D3D9_MEMORY;
         }
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-wall")))
-        {
-            if(i + 6 >= nArgNum)
-            {
-                PrintHelp(strInput[0], MSDK_STRING("Not enough parameters for -wall key"));
-                return MFX_ERR_UNSUPPORTED;
-            }
-            // use d3d9 rendering by default
-            if (SYSTEM_MEMORY == pParams->memType)
-                pParams->memType = D3D9_MEMORY;
-
-            pParams->mode = MODE_RENDERING;
-
-            msdk_opt_read(strInput[++i], pParams->nWallW);
-            msdk_opt_read(strInput[++i], pParams->nWallH);
-            msdk_opt_read(strInput[++i], pParams->nWallCell);
-            msdk_opt_read(strInput[++i], pParams->nWallMonitor);
-
-            mfxU32 nTitle;
-            msdk_opt_read(strInput[++i], nTitle);
-
-            pParams->bWallNoTitle = 0 == nTitle;
-
-            msdk_opt_read(strInput[++i], pParams->nWallTimeout);
-        }
-#endif
-#if defined(LIBVA_SUPPORT)
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-vaapi")))
-        {
-            pParams->memType = D3D9_MEMORY;
-        }
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-r")))
-        {
-            pParams->memType = D3D9_MEMORY;
-            pParams->mode = MODE_RENDERING;
-            pParams->libvaBackend = MFX_LIBVA_X11;
-        }
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-rwld")))
-        {
-            pParams->memType = D3D9_MEMORY;
-            pParams->mode = MODE_RENDERING;
-            pParams->libvaBackend = MFX_LIBVA_WAYLAND;
-        }
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-perf")))
-        {
-            pParams->bPerfMode = true;
-        }
-        else if (0 == msdk_strncmp(strInput[i], MSDK_STRING("-rdrm"), 5))
-        {
-            pParams->memType = D3D9_MEMORY;
-            pParams->mode = MODE_RENDERING;
-            pParams->libvaBackend = MFX_LIBVA_DRM_MODESET;
-            if (strInput[i][5]) {
-                if (strInput[i][5] != '-') {
-                    PrintHelp(strInput[0], MSDK_STRING("unsupported monitor type"));
-                    return MFX_ERR_UNSUPPORTED;
-                }
-                pParams->monitorType = getMonitorType(&strInput[i][6]);
-                if (pParams->monitorType >= MFX_MONITOR_MAXNUMBER) {
-                    PrintHelp(strInput[0], MSDK_STRING("unsupported monitor type"));
-                    return MFX_ERR_UNSUPPORTED;
-                }
-            } else {
-                pParams->monitorType = MFX_MONITOR_AUTO; // that's case of "-rdrm" pure option
-            }
-        }
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-window")))
-        {
-            if(i +4 >= nArgNum)
-            {
-                PrintHelp(strInput[0], MSDK_STRING("Not enough parameters for -window key"));
-                return MFX_ERR_UNSUPPORTED;
-            }
-            msdk_opt_read(strInput[++i], pParams->nRenderWinX);
-            msdk_opt_read(strInput[++i], pParams->nRenderWinY);
-            msdk_opt_read(strInput[++i], pParams->Width);
-            msdk_opt_read(strInput[++i], pParams->Height);
-
-            if (0 == pParams->Width)
-                pParams->Width = 320;
-            if (0 == pParams->Height)
-                pParams->Height = 240;
-
-            pParams->bRenderWin = true;
-        }
-#endif
         else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-low_latency")))
         {
             switch (pParams->videoType)
@@ -264,11 +130,8 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
                 case MFX_CODEC_HEVC:
                 case MFX_CODEC_AVC:
                 case MFX_CODEC_JPEG:
-                {
                     pParams->bLowLat = true;
-                    if (!pParams->bIsMVC)
-                        break;
-                }
+					break;
                 default:
                 {
                      PrintHelp(strInput[0], MSDK_STRING("-low_latency mode is suppoted only for H.264 and JPEG codecs"));
@@ -301,11 +164,8 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
                 case MFX_CODEC_HEVC:
                 case MFX_CODEC_AVC:
                 case MFX_CODEC_JPEG:
-                {
-                    pParams->bCalLat = true;
-                    if (!pParams->bIsMVC)
-                        break;
-                }
+                    pParams->bLowLat = true;
+					break;
                 default:
                 {
                      PrintHelp(strInput[0], MSDK_STRING("-calc_latency mode is suppoted only for H.264 and JPEG codecs"));
@@ -358,47 +218,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
         {
             pParams->gpuCopy = MFX_GPUCOPY_OFF;
         }
-#if !defined(_WIN32) && !defined(_WIN64)
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-threads_num")))
-        {
-            if(i + 1 >= nArgNum)
-            {
-                PrintHelp(strInput[0], MSDK_STRING("Not enough parameters for -threads_num key"));
-                return MFX_ERR_UNSUPPORTED;
-            }
-            if (MFX_ERR_NONE != msdk_opt_read(strInput[++i], pParams->nThreadsNum))
-            {
-                PrintHelp(strInput[0], MSDK_STRING("threads_num is invalid"));
-                return MFX_ERR_UNSUPPORTED;
-            }
-        }
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-threads_schedtype")))
-        {
-            if(i + 1 >= nArgNum)
-            {
-                PrintHelp(strInput[0], MSDK_STRING("Not enough parameters for -threads_schedtype key"));
-                return MFX_ERR_UNSUPPORTED;
-            }
-            if (MFX_ERR_NONE != msdk_thread_get_schedtype(strInput[++i], pParams->SchedulingType))
-            {
-                PrintHelp(strInput[0], MSDK_STRING("threads_schedtype is invalid"));
-                return MFX_ERR_UNSUPPORTED;
-            }
-        }
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-threads_priority")))
-        {
-            if(i + 1 >= nArgNum)
-            {
-                PrintHelp(strInput[0], MSDK_STRING("Not enough parameters for -threads_priority key"));
-                return MFX_ERR_UNSUPPORTED;
-            }
-            if (MFX_ERR_NONE != msdk_opt_read(strInput[++i], pParams->Priority))
-            {
-                PrintHelp(strInput[0], MSDK_STRING("threads_priority is invalid"));
-                return MFX_ERR_UNSUPPORTED;
-            }
-        }
-#endif // #if !defined(_WIN32) && !defined(_WIN64)
         else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-f")))
         {
             if(i + 1 >= nArgNum)
@@ -493,21 +312,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
         {
             pParams->fourcc = MFX_FOURCC_A2RGB10;
         }
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-path")))
-        {
-            i++;
-#if defined(_WIN32) || defined(_WIN64)
-            msdk_char wchar[MSDK_MAX_FILENAME_LEN];
-            msdk_opt_read(strInput[i], wchar);
-            std::wstring wstr(wchar);
-            std::string str(wstr.begin(), wstr.end());
-
-            strcpy_s(pParams->pluginParams.strPluginPath, str.c_str());
-#else
-            msdk_opt_read(strInput[i], pParams->pluginParams.strPluginPath);
-#endif
-            pParams->pluginParams.type = MFX_PLUGINLOAD_TYPE_FILE;
-        }
         else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-i:null")))
         {
             ;
@@ -516,21 +320,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
         {
             switch (strInput[i][1])
             {
-            case MSDK_CHAR('p'):
-                if (++i < nArgNum) {
-                   if (MFX_ERR_NONE == ConvertStringToGuid(strInput[i], pParams->pluginParams.pluginGuid))
-                    {
-                        pParams->pluginParams.type = MFX_PLUGINLOAD_TYPE_GUID;
-                    }
-                    else
-                    {
-                        PrintHelp(strInput[0], MSDK_STRING("Unknown options"));
-                    }
-                 }
-                else {
-                    msdk_printf(MSDK_STRING("error: option '-p' expects an argument\n"));
-                }
-                break;
             case MSDK_CHAR('i'):
                 if (++i < nArgNum) {
                     msdk_opt_read(strInput[i], pParams->strSrcFile);
@@ -608,11 +397,7 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
     return MFX_ERR_NONE;
 }
 
-#if defined(_WIN32) || defined(_WIN64)
 int _tmain_decode(int argc, TCHAR *argv[])
-#else
-int main(int argc, char *argv[])
-#endif
 {
     sInputParams        Params;   // input parameters from command line
     CDecodingPipeline   Pipeline; // pipeline for decoding, includes input file reader, decoder and output file writer
@@ -622,8 +407,6 @@ int main(int argc, char *argv[])
     sts = ParseInputString(argv, (mfxU8)argc, &Params);
     MSDK_CHECK_PARSE_RESULT(sts, MFX_ERR_NONE, 1);
 
-    if (Params.bIsMVC)
-        Pipeline.SetMultiView();
 
     sts = Pipeline.Init(&Params);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, 1);

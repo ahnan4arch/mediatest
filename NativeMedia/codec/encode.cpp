@@ -1,22 +1,7 @@
-/*********************************************************************************
 
-INTEL CORPORATION PROPRIETARY INFORMATION
-This software is supplied under the terms of a license agreement or nondisclosure
-agreement with Intel Corporation and may not be copied or disclosed except in
-accordance with the terms of that agreement.
-This sample was distributed or derived from the Intel's Media Samples package.
-The original version of this sample may be obtained from https://software.intel.com/en-us/intel-media-server-studio
-or https://software.intel.com/en-us/media-client-solutions-support.
-Copyright(c) 2005-2015 Intel Corporation. All Rights Reserved.
-
-**********************************************************************************/
 #include "stdafx.h"
-
-
 #include <memory>
-#include "pipeline_encode.h"
-#include "pipeline_user.h"
-#include "pipeline_region_encode.h"
+#include "encode_pipeline.h"
 #include <stdarg.h>
 #include <string>
 
@@ -28,15 +13,6 @@ Copyright(c) 2005-2015 Intel Corporation. All Rights Reserved.
         return MFX_ERR_UNSUPPORTED;\
     } \
 }
-
-// Extensions for internal use, normally these macros are blank
-#ifdef MOD_ENC
-    #include "extension_macros.h"
-#else
-    #define MOD_ENC_CREATE_PIPELINE
-    #define MOD_ENC_PRINT_HELP
-    #define MOD_ENC_PARSE_INPUT
-#endif
 
 void PrintHelp(msdk_char *strAppName, const msdk_char *strErrorMessage, ...)
 {
@@ -59,7 +35,6 @@ void PrintHelp(msdk_char *strAppName, const msdk_char *strErrorMessage, ...)
     msdk_printf(MSDK_STRING("   <codecid>=h265|vp8                - in-box Media SDK plugins (may require separate downloading and installation)\n"));
     msdk_printf(MSDK_STRING("   If codecid is jpeg, -q option is mandatory.)\n"));
     msdk_printf(MSDK_STRING("Options: \n"));
-    MOD_ENC_PRINT_HELP;
     msdk_printf(MSDK_STRING("   [-nv12] - input is in NV12 color format, if not specified YUV420 is expected\n"));
     msdk_printf(MSDK_STRING("   [-tff|bff] - input stream is interlaced, top|bottom fielf first, if not specified progressive is expected\n"));
     msdk_printf(MSDK_STRING("   [-bref] - arrange B frames in B pyramid reference structure\n"));
@@ -95,17 +70,14 @@ void PrintHelp(msdk_char *strAppName, const msdk_char *strErrorMessage, ...)
     msdk_printf(MSDK_STRING("   [-mss]                   - maximum slice size in bytes. Supported only with -hw and h264 codec. This option is not compatible with -num_slice option.\n"));
     msdk_printf(MSDK_STRING("   [-re]                    - enable region encode mode. Works only with h265 encoder\n"));
     msdk_printf(MSDK_STRING("Example: %s h265 -i InputYUVFile -o OutputEncodedFile -w width -h height -hw -p 2fca99749fdb49aeb121a5b63ef568f7\n"), strAppName);
-#if D3D_SURFACES_SUPPORT
-    msdk_printf(MSDK_STRING("   [-d3d] - work with d3d surfaces\n"));
+
+	msdk_printf(MSDK_STRING("   [-d3d] - work with d3d surfaces\n"));
     msdk_printf(MSDK_STRING("   [-d3d11] - work with d3d11 surfaces\n"));
     msdk_printf(MSDK_STRING("Example: %s h264|h265|mpeg2|jpeg -i InputYUVFile -o OutputEncodedFile -w width -h height -d3d -hw \n"), strAppName);
     msdk_printf(MSDK_STRING("Example for MVC: %s mvc -i InputYUVFile_1 -i InputYUVFile_2 -o OutputEncodedFile -w width -h height \n"), strAppName);
-#endif
-#ifdef LIBVA_SUPPORT
-    msdk_printf(MSDK_STRING("   [-vaapi] - work with vaapi surfaces\n"));
-    msdk_printf(MSDK_STRING("Example: %s h264|mpeg2|mvc -i InputYUVFile -o OutputEncodedFile -w width -h height -angle 180 -g 300 -r 1 \n"), strAppName);
-#endif
-    msdk_printf(MSDK_STRING("   [-viewoutput] - instruct the MVC encoder to output each view in separate bitstream buffer. Depending on the number of -o options behaves as follows:\n"));
+
+
+	msdk_printf(MSDK_STRING("   [-viewoutput] - instruct the MVC encoder to output each view in separate bitstream buffer. Depending on the number of -o options behaves as follows:\n"));
     msdk_printf(MSDK_STRING("                   1: two views are encoded in single file\n"));
     msdk_printf(MSDK_STRING("                   2: two views are encoded in separate files\n"));
     msdk_printf(MSDK_STRING("                   3: behaves like 2 -o opitons was used and then one -o\n\n"));
@@ -129,7 +101,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
     }
 
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
-    msdk_opt_read(MSDK_CPU_ROTATE_PLUGIN, pParams->strPluginDLLPath);
 
     // default implementation
     pParams->bUseHWLib = true;
@@ -151,11 +122,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
             {
                 PrintHelp(strInput[0], MSDK_STRING("Unsupported codec"));
                 return MFX_ERR_UNSUPPORTED;
-            }
-            if (pParams->CodecId == CODEC_MVC)
-            {
-                pParams->CodecId = MFX_CODEC_AVC;
-                pParams->MVC_flags |= MVC_ENABLED;
             }
             continue;
         }
@@ -215,29 +181,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
                 return MFX_ERR_UNSUPPORTED;
             }
         }
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-angle")))
-        {
-            VAL_CHECK(i+1 >= nArgNum, i, strInput[i]);
-            if (MFX_ERR_NONE != msdk_opt_read(strInput[++i], pParams->nRotationAngle))
-            {
-                PrintHelp(strInput[0], MSDK_STRING("Rotation Angle is invalid"));
-                return MFX_ERR_UNSUPPORTED;
-            }
-        }
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-opencl")))
-        {
-            msdk_opt_read(MSDK_OCL_ROTATE_PLUGIN, pParams->strPluginDLLPath);
-            pParams->nRotationAngle = 180;
-        }
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-viewoutput")))
-        {
-            if (!(MVC_ENABLED & pParams->MVC_flags))
-            {
-                PrintHelp(strInput[0], MSDK_STRING("-viewoutput option is supported only when mvc codec specified"));
-                return MFX_ERR_UNSUPPORTED;
-            }
-            pParams->MVC_flags |= MVC_VIEWOUTPUT;
-        }
         else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-la")))
         {
             pParams->nRateControlMethod = MFX_RATECONTROL_LA;
@@ -261,22 +204,10 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
                 return MFX_ERR_UNSUPPORTED;
             }
         }
-#if D3D_SURFACES_SUPPORT
         else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-d3d")))
         {
             pParams->memType = D3D9_MEMORY;
         }
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-d3d11")))
-        {
-            pParams->memType = D3D11_MEMORY;
-        }
-#endif
-#ifdef LIBVA_SUPPORT
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-vaapi")))
-        {
-            pParams->memType = D3D9_MEMORY;
-        }
-#endif
         else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-async")))
         {
             VAL_CHECK(i+1 >= nArgNum, i, strInput[i]);
@@ -330,26 +261,7 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
                 PrintHelp(strInput[0], MSDK_STRING("Number of slices is invalid"));
                 return MFX_ERR_UNSUPPORTED;
             }
-        } else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-path")))
-        {
-            i++;
-#if defined(_WIN32) || defined(_WIN64)
-            msdk_char wchar[MSDK_MAX_FILENAME_LEN];
-            msdk_opt_read(strInput[i], wchar);
-            std::wstring wstr(wchar);
-            std::string str(wstr.begin(), wstr.end());
-
-            strcpy_s(pParams->pluginParams.strPluginPath, str.c_str());
-#else
-            msdk_opt_read(strInput[i], pParams->pluginParams.strPluginPath);
-#endif
-            pParams->pluginParams.type = MFX_PLUGINLOAD_TYPE_FILE;
-        }
-        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-re")))
-        {
-            pParams->UseRegionEncode = true;
-        }
-        MOD_ENC_PARSE_INPUT
+        } 
         else // 1-character options
         {
             switch (strInput[i][1])
@@ -449,10 +361,7 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
             case MSDK_CHAR('i'):
                 if (++i < nArgNum) {
                     msdk_opt_read(strInput[i], pParams->strSrcFile);
-                    if (MVC_ENABLED & pParams->MVC_flags)
-                    {
-                        pParams->srcFileBuff.push_back(strInput[i]);
-                    }
+                    pParams->srcFileBuff.push_back(strInput[i]);
                 }
                 else {
                     msdk_printf(MSDK_STRING("error: option '-i' expects an argument\n"));
@@ -476,21 +385,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
                 }
                 else {
                     msdk_printf(MSDK_STRING("error: option '-q' expects an argument\n"));
-                }
-                break;
-            case MSDK_CHAR('p'):
-                if (++i < nArgNum) {
-                    if (MFX_ERR_NONE == ConvertStringToGuid(strInput[i], pParams->pluginParams.pluginGuid))
-                    {
-                        pParams->pluginParams.type = MFX_PLUGINLOAD_TYPE_GUID;
-                    }
-                    else
-                    {
-                        PrintHelp(strInput[0], MSDK_STRING("Unknown options"));
-                    }
-                }
-                else {
-                    msdk_printf(MSDK_STRING("error: option '-p' expects an argument\n"));
                 }
                 break;
             case MSDK_CHAR('?'):
@@ -531,12 +425,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
         return MFX_ERR_UNSUPPORTED;
     }
 
-    // check parameters validity
-    if (pParams->nRotationAngle != 0 && pParams->nRotationAngle != 180)
-    {
-        PrintHelp(strInput[0], MSDK_STRING("Angles other than 180 degrees are not supported."));
-        return MFX_ERR_UNSUPPORTED; // other than 180 are not supported
-    }
 
     if (pParams->nQuality && (MFX_CODEC_JPEG != pParams->CodecId))
     {
@@ -548,25 +436,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
     {
         PrintHelp(strInput[0], MSDK_STRING("-u and -b options are supported only for H.264, MPEG2 and MVC encoders. For JPEG encoder use -q"));
         return MFX_ERR_UNSUPPORTED;
-    }
-
-    // set default values for optional parameters that were not set or were set incorrectly
-    mfxU32 nviews = (mfxU32)pParams->srcFileBuff.size();
-    if ((nviews <= 1) || (nviews > 2))
-    {
-        if (!(MVC_ENABLED & pParams->MVC_flags))
-        {
-            pParams->numViews = 1;
-        }
-        else
-        {
-            PrintHelp(strInput[0], MSDK_STRING("Only 2 views are supported right now in this sample."));
-            return MFX_ERR_UNSUPPORTED;
-        }
-    }
-    else
-    {
-        pParams->numViews = nviews;
     }
 
     if (MFX_TARGETUSAGE_BEST_QUALITY != pParams->nTargetUsage && MFX_TARGETUSAGE_BEST_SPEED != pParams->nTargetUsage)
@@ -647,18 +516,6 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
         }
     }
 
-    // not all options are supported if rotate plugin is enabled
-    if (pParams->nRotationAngle == 180 && (
-        MFX_PICSTRUCT_PROGRESSIVE != pParams->nPicStruct ||
-        pParams->nDstWidth != pParams->nWidth ||
-        pParams->nDstHeight != pParams->nHeight ||
-        MVC_ENABLED & pParams->MVC_flags ||
-        pParams->memType & D3D11_MEMORY ||
-        pParams->nRateControlMethod == MFX_RATECONTROL_LA))
-    {
-        PrintHelp(strInput[0], MSDK_STRING("Some of the command line options are not supported with rotation plugin!"));
-        return MFX_ERR_UNSUPPORTED;
-    }
 
     if (pParams->nAsyncDepth == 0)
     {
@@ -676,50 +533,18 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
         pParams->nRateControlMethod = MFX_RATECONTROL_CBR;
     }
 
-    if(pParams->UseRegionEncode)
-    {
-        if(pParams->CodecId != MFX_CODEC_HEVC)
-        {
-            msdk_printf(MSDK_STRING("Region encode option is compatible with h265(HEVC) encoder only.\nRegion encoding is disabled\n"));
-            pParams->UseRegionEncode=false;
-        }
-        if (pParams->nWidth  != pParams->nDstWidth ||
-            pParams->nHeight != pParams->nDstHeight ||
-            pParams->nRotationAngle!=0)
-
-        {
-            msdk_printf(MSDK_STRING("Region encode option is not compatible with VPP processing.\nRegion encoding is disabled\n"));
-            pParams->UseRegionEncode=false;
-        }
-    }
-
     return MFX_ERR_NONE;
 }
 
 CEncodingPipeline* CreatePipeline(const sInputParams& params)
 {
-    MOD_ENC_CREATE_PIPELINE;
 
-    if(params.UseRegionEncode)
-    {
-        return new CRegionEncodingPipeline;
-    }
-    else if(params.nRotationAngle)
-    {
-        return new CUserPipeline;
-    }
-    else
     {
         return new CEncodingPipeline;
     }
 }
 
-
-#if defined(_WIN32) || defined(_WIN64)
 int _tmain_encode(int argc, msdk_char *argv[])
-#else
-int main(int argc, char *argv[])
-#endif
 {
     sInputParams Params = {};   // input parameters from command line
     std::auto_ptr<CEncodingPipeline>  pPipeline;
@@ -734,11 +559,6 @@ int main(int argc, char *argv[])
 
     MSDK_CHECK_POINTER(pPipeline.get(), MFX_ERR_MEMORY_ALLOC);
 
-    if (MVC_ENABLED & Params.MVC_flags)
-    {
-        pPipeline->SetMultiView();
-        pPipeline->SetNumView(Params.numViews);
-    }
 
     sts = pPipeline->Init(&Params);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, 1);

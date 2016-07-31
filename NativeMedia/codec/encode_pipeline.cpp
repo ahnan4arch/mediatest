@@ -1,57 +1,24 @@
-/*********************************************************************************
-
-INTEL CORPORATION PROPRIETARY INFORMATION
-This software is supplied under the terms of a license agreement or nondisclosure
-agreement with Intel Corporation and may not be copied or disclosed except in
-accordance with the terms of that agreement.
-This sample was distributed or derived from the Intel's Media Samples package.
-The original version of this sample may be obtained from https://software.intel.com/en-us/intel-media-server-studio
-or https://software.intel.com/en-us/media-client-solutions-support.
-Copyright(c) 2005-2015 Intel Corporation. All Rights Reserved.
-
-**********************************************************************************/
 
 #include "stdafx.h"
 
-#include "pipeline_encode.h"
+#include "encode_pipeline.h"
 #include "sysmem_allocator.h"
 
-#if D3D_SURFACES_SUPPORT
 #include "d3d_allocator.h"
-#include "d3d11_allocator.h"
-
-#include "d3d_device.h"
-#include "d3d11_device.h"
-#endif
-
-#ifdef LIBVA_SUPPORT
-#include "vaapi_allocator.h"
-#include "vaapi_device.h"
-#endif
-
-#include "plugin_loader.h"
 
 /* obtain the clock tick of an uninterrupted master clock */
 msdk_tick time_get_tick(void)
 {
-    return msdk_time_get_tick();/*
-    LARGE_INTEGER t1;
+    return msdk_time_get_tick();
 
-    QueryPerformanceCounter(&t1);
-    return t1.QuadPart;*/
-
-} /* vm_tick vm_time_get_tick(void) */
+} 
 
 /* obtain the clock resolution */
 msdk_tick time_get_frequency(void)
 {
-    return msdk_time_get_frequency();/*
-    LARGE_INTEGER t1;
+    return msdk_time_get_frequency();
 
-    QueryPerformanceFrequency(&t1);
-    return t1.QuadPart;*/
-
-} /* vm_tick vm_time_get_frequency(void) */
+} 
 
 CEncTaskPool::CEncTaskPool()
 {
@@ -280,58 +247,6 @@ mfxStatus sTask::Reset()
     return MFX_ERR_NONE;
 }
 
-mfxStatus CEncodingPipeline::AllocAndInitMVCSeqDesc()
-{
-    // a simple example of mfxExtMVCSeqDesc structure filling
-    // actually equal to the "Default dependency mode" - when the structure fields are left 0,
-    // but we show how to properly allocate and fill the fields
-
-    mfxU32 i;
-
-    // mfxMVCViewDependency array
-    m_MVCSeqDesc.NumView = m_nNumView;
-    m_MVCSeqDesc.NumViewAlloc = m_nNumView;
-    m_MVCSeqDesc.View = new mfxMVCViewDependency[m_MVCSeqDesc.NumViewAlloc];
-    MSDK_CHECK_POINTER(m_MVCSeqDesc.View, MFX_ERR_MEMORY_ALLOC);
-    for (i = 0; i < m_MVCSeqDesc.NumViewAlloc; ++i)
-    {
-        MSDK_ZERO_MEMORY(m_MVCSeqDesc.View[i]);
-        m_MVCSeqDesc.View[i].ViewId = (mfxU16) i; // set view number as view id
-    }
-
-    // set up dependency for second view
-    m_MVCSeqDesc.View[1].NumAnchorRefsL0 = 1;
-    m_MVCSeqDesc.View[1].AnchorRefL0[0] = 0;     // ViewId 0 - base view
-
-    m_MVCSeqDesc.View[1].NumNonAnchorRefsL0 = 1;
-    m_MVCSeqDesc.View[1].NonAnchorRefL0[0] = 0;  // ViewId 0 - base view
-
-    // viewId array
-    m_MVCSeqDesc.NumViewId = m_nNumView;
-    m_MVCSeqDesc.NumViewIdAlloc = m_nNumView;
-    m_MVCSeqDesc.ViewId = new mfxU16[m_MVCSeqDesc.NumViewIdAlloc];
-    MSDK_CHECK_POINTER(m_MVCSeqDesc.ViewId, MFX_ERR_MEMORY_ALLOC);
-    for (i = 0; i < m_MVCSeqDesc.NumViewIdAlloc; ++i)
-    {
-        m_MVCSeqDesc.ViewId[i] = (mfxU16) i;
-    }
-
-    // create a single operation point containing all views
-    m_MVCSeqDesc.NumOP = 1;
-    m_MVCSeqDesc.NumOPAlloc = 1;
-    m_MVCSeqDesc.OP = new mfxMVCOperationPoint[m_MVCSeqDesc.NumOPAlloc];
-    MSDK_CHECK_POINTER(m_MVCSeqDesc.OP, MFX_ERR_MEMORY_ALLOC);
-    for (i = 0; i < m_MVCSeqDesc.NumOPAlloc; ++i)
-    {
-        MSDK_ZERO_MEMORY(m_MVCSeqDesc.OP[i]);
-        m_MVCSeqDesc.OP[i].NumViews = (mfxU16) m_nNumView;
-        m_MVCSeqDesc.OP[i].NumTargetViews = (mfxU16) m_nNumView;
-        m_MVCSeqDesc.OP[i].TargetViewId = m_MVCSeqDesc.ViewId; // points to mfxExtMVCSeqDesc::ViewId
-    }
-
-    return MFX_ERR_NONE;
-}
-
 mfxStatus CEncodingPipeline::AllocAndInitVppDoNotUse()
 {
     m_VppDoNotUse.NumAlg = 4;
@@ -347,13 +262,6 @@ mfxStatus CEncodingPipeline::AllocAndInitVppDoNotUse()
     return MFX_ERR_NONE;
 
 } // CEncodingPipeline::AllocAndInitVppDoNotUse()
-
-void CEncodingPipeline::FreeMVCSeqDesc()
-{
-    MSDK_SAFE_DELETE_ARRAY(m_MVCSeqDesc.View);
-    MSDK_SAFE_DELETE_ARRAY(m_MVCSeqDesc.ViewId);
-    MSDK_SAFE_DELETE_ARRAY(m_MVCSeqDesc.OP);
-}
 
 void CEncodingPipeline::FreeVppDoNotUse()
 {
@@ -398,7 +306,7 @@ mfxStatus CEncodingPipeline::InitMfxEncParams(sInputParams *pInParams)
     m_mfxEncParams.mfx.FrameInfo.PicStruct    = pInParams->nPicStruct;
 
     // set frame size and crops
-    if(pInParams->CodecId==MFX_CODEC_HEVC && !memcmp(pInParams->pluginParams.pluginGuid.Data,MFX_PLUGINID_HEVCE_HW.Data,sizeof(MFX_PLUGINID_HEVCE_HW.Data)))
+    if(pInParams->CodecId==MFX_CODEC_HEVC )
     {
         // In case of HW HEVC decoder width and height must be aligned to 32 pixels. This limitation is planned to be removed in later versions of plugin
         m_mfxEncParams.mfx.FrameInfo.Width  = MSDK_ALIGN32(pInParams->nDstWidth);
@@ -418,23 +326,6 @@ mfxStatus CEncodingPipeline::InitMfxEncParams(sInputParams *pInParams)
     m_mfxEncParams.mfx.FrameInfo.CropW = pInParams->nDstWidth;
     m_mfxEncParams.mfx.FrameInfo.CropH = pInParams->nDstHeight;
 
-    // we don't specify profile and level and let the encoder choose those basing on parameters
-    // we must specify profile only for MVC codec
-    if (MVC_ENABLED & m_MVCflags)
-    {
-        m_mfxEncParams.mfx.CodecProfile = MFX_PROFILE_AVC_STEREO_HIGH;
-    }
-
-    // configure and attach external parameters
-    if (MVC_ENABLED & pInParams->MVC_flags)
-        m_EncExtParams.push_back((mfxExtBuffer *)&m_MVCSeqDesc);
-
-    if (MVC_VIEWOUTPUT & pInParams->MVC_flags)
-    {
-        // ViewOuput option requested
-        m_CodingOption.ViewOutput = MFX_CODINGOPTION_ON;
-        m_EncExtParams.push_back((mfxExtBuffer *)&m_CodingOption);
-    }
 
     // configure the depth of the look ahead BRC if specified in command line
     if (pInParams->nLADepth || pInParams->nMaxSliceSize || pInParams->nBRefType)
@@ -519,8 +410,6 @@ mfxStatus CEncodingPipeline::InitMfxVppParams(sInputParams *pInParams)
     AllocAndInitVppDoNotUse();
     m_VppExtParams.push_back((mfxExtBuffer *)&m_VppDoNotUse);
 
-    if (MVC_ENABLED & pInParams->MVC_flags)
-        m_VppExtParams.push_back((mfxExtBuffer *)&m_MVCSeqDesc);
 
     m_mfxVppParams.ExtParam = &m_VppExtParams[0]; // vector is stored linearly in memory
     m_mfxVppParams.NumExtParam = (mfxU16)m_VppExtParams.size();
@@ -530,46 +419,6 @@ mfxStatus CEncodingPipeline::InitMfxVppParams(sInputParams *pInParams)
     return MFX_ERR_NONE;
 }
 
-mfxStatus CEncodingPipeline::CreateHWDevice()
-{
-    mfxStatus sts = MFX_ERR_NONE;
-#if D3D_SURFACES_SUPPORT
-#if MFX_D3D11_SUPPORT
-    if (D3D11_MEMORY == m_memType)
-        m_hwdev = new CD3D11Device();
-    else
-#endif // #if MFX_D3D11_SUPPORT
-        m_hwdev = new CD3D9Device();
-
-    if (NULL == m_hwdev)
-        return MFX_ERR_MEMORY_ALLOC;
-
-    sts = m_hwdev->Init(
-        NULL,
-        0,
-        MSDKAdapter::GetNumber(GetFirstSession()));
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-#elif LIBVA_SUPPORT
-    m_hwdev = CreateVAAPIDevice();
-    if (NULL == m_hwdev)
-    {
-        return MFX_ERR_MEMORY_ALLOC;
-    }
-    sts = m_hwdev->Init(NULL, 0, MSDKAdapter::GetNumber(GetFirstSession()));
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-#endif
-    return MFX_ERR_NONE;
-}
-
-mfxStatus CEncodingPipeline::ResetDevice()
-{
-    if (D3D9_MEMORY == m_memType || D3D11_MEMORY == m_memType)
-    {
-        return m_hwdev->Reset();
-    }
-    return MFX_ERR_NONE;
-}
 
 mfxStatus CEncodingPipeline::AllocFrames()
 {
@@ -687,8 +536,6 @@ mfxStatus CEncodingPipeline::CreateAllocator()
 
     if (D3D9_MEMORY == m_memType || D3D11_MEMORY == m_memType)
     {
-#if D3D_SURFACES_SUPPORT
-        sts = CreateHWDevice();
         MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
         mfxHDL hdl = NULL;
@@ -698,7 +545,7 @@ mfxStatus CEncodingPipeline::CreateAllocator()
         #endif // #if MFX_D3D11_SUPPORT
             MFX_HANDLE_D3D9_DEVICE_MANAGER;
 
-        sts = m_hwdev->GetHandle(hdl_t, &hdl);
+//        sts = m_hwdev->GetHandle(hdl_t, &hdl);
         MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
         // handle is needed for HW library only
@@ -711,20 +558,6 @@ mfxStatus CEncodingPipeline::CreateAllocator()
         }
 
         // create D3D allocator
-#if MFX_D3D11_SUPPORT
-        if (D3D11_MEMORY == m_memType)
-        {
-            m_pMFXAllocator = new D3D11FrameAllocator;
-            MSDK_CHECK_POINTER(m_pMFXAllocator, MFX_ERR_MEMORY_ALLOC);
-
-            D3D11AllocatorParams *pd3dAllocParams = new D3D11AllocatorParams;
-            MSDK_CHECK_POINTER(pd3dAllocParams, MFX_ERR_MEMORY_ALLOC);
-            pd3dAllocParams->pDevice = reinterpret_cast<ID3D11Device *>(hdl);
-
-            m_pmfxAllocatorParams = pd3dAllocParams;
-        }
-        else
-#endif // #if MFX_D3D11_SUPPORT
         {
             m_pMFXAllocator = new D3DFrameAllocator;
             MSDK_CHECK_POINTER(m_pMFXAllocator, MFX_ERR_MEMORY_ALLOC);
@@ -743,58 +576,10 @@ mfxStatus CEncodingPipeline::CreateAllocator()
         MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
         m_bExternalAlloc = true;
-#endif
-#ifdef LIBVA_SUPPORT
-        sts = CreateHWDevice();
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-        /* It's possible to skip failed result here and switch to SW implementation,
-        but we don't process this way */
 
-        mfxHDL hdl = NULL;
-        sts = m_hwdev->GetHandle(MFX_HANDLE_VA_DISPLAY, &hdl);
-        // provide device manager to MediaSDK
-        sts = m_mfxSession.SetHandle(MFX_HANDLE_VA_DISPLAY, hdl);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-        // create VAAPI allocator
-        m_pMFXAllocator = new vaapiFrameAllocator;
-        MSDK_CHECK_POINTER(m_pMFXAllocator, MFX_ERR_MEMORY_ALLOC);
-
-        vaapiAllocatorParams *p_vaapiAllocParams = new vaapiAllocatorParams;
-        MSDK_CHECK_POINTER(p_vaapiAllocParams, MFX_ERR_MEMORY_ALLOC);
-
-        p_vaapiAllocParams->m_dpy = (VADisplay)hdl;
-        m_pmfxAllocatorParams = p_vaapiAllocParams;
-
-        /* In case of video memory we must provide MediaSDK with external allocator
-        thus we demonstrate "external allocator" usage model.
-        Call SetAllocator to pass allocator to mediasdk */
-        sts = m_mfxSession.SetFrameAllocator(m_pMFXAllocator);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-        m_bExternalAlloc = true;
-#endif
     }
     else
     {
-#ifdef LIBVA_SUPPORT
-        //in case of system memory allocator we also have to pass MFX_HANDLE_VA_DISPLAY to HW library
-        mfxIMPL impl;
-        m_mfxSession.QueryIMPL(&impl);
-
-        if(MFX_IMPL_HARDWARE == MFX_IMPL_BASETYPE(impl))
-        {
-            sts = CreateHWDevice();
-            MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-            mfxHDL hdl = NULL;
-            sts = m_hwdev->GetHandle(MFX_HANDLE_VA_DISPLAY, &hdl);
-            // provide device manager to MediaSDK
-            sts = m_mfxSession.SetHandle(MFX_HANDLE_VA_DISPLAY, hdl);
-            MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-        }
-#endif
-
         // create system memory allocator
         m_pMFXAllocator = new SysMemFrameAllocator;
         MSDK_CHECK_POINTER(m_pMFXAllocator, MFX_ERR_MEMORY_ALLOC);
@@ -825,18 +610,12 @@ void CEncodingPipeline::DeleteFrames()
     }
 }
 
-void CEncodingPipeline::DeleteHWDevice()
-{
-    MSDK_SAFE_DELETE(m_hwdev);
-}
-
 void CEncodingPipeline::DeleteAllocator()
 {
     // delete allocator
     MSDK_SAFE_DELETE(m_pMFXAllocator);
     MSDK_SAFE_DELETE(m_pmfxAllocatorParams);
 
-    DeleteHWDevice();
 }
 
 CEncodingPipeline::CEncodingPipeline()
@@ -850,14 +629,8 @@ CEncodingPipeline::CEncodingPipeline()
     m_pEncSurfaces = NULL;
     m_pVppSurfaces = NULL;
 
-    m_MVCflags = MVC_DISABLED;
-    m_nNumView = 0;
 
     m_FileWriters.first = m_FileWriters.second = NULL;
-
-    MSDK_ZERO_MEMORY(m_MVCSeqDesc);
-    m_MVCSeqDesc.Header.BufferId = MFX_EXTBUFF_MVC_SEQ_DESC;
-    m_MVCSeqDesc.Header.BufferSz = sizeof(m_MVCSeqDesc);
 
     MSDK_ZERO_MEMORY(m_VppDoNotUse);
     m_VppDoNotUse.Header.BufferId = MFX_EXTBUFF_VPP_DONOTUSE;
@@ -891,11 +664,6 @@ CEncodingPipeline::~CEncodingPipeline()
     Close();
 }
 
-void CEncodingPipeline::SetMultiView()
-{
-    m_FileReader.SetMultiView();
-}
-
 mfxStatus CEncodingPipeline::InitFileWriter(CSmplBitstreamWriter **ppWriter, const msdk_char *filename)
 {
     MSDK_CHECK_ERROR(ppWriter, NULL, MFX_ERR_NULL_PTR);
@@ -916,49 +684,6 @@ mfxStatus CEncodingPipeline::InitFileWriters(sInputParams *pParams)
     mfxStatus sts = MFX_ERR_NONE;
 
     // prepare output file writers
-
-    // ViewOutput mode: output in single bitstream
-    if ( (MVC_VIEWOUTPUT & pParams->MVC_flags) && (pParams->dstFileBuff.size() <= 1))
-    {
-        sts = InitFileWriter(&m_FileWriters.first, pParams->dstFileBuff[0]);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-        m_FileWriters.second = m_FileWriters.first;
-    }
-    // ViewOutput mode: 2 bitstreams in separate files
-    else if ( (MVC_VIEWOUTPUT & pParams->MVC_flags) && (pParams->dstFileBuff.size() <= 2))
-    {
-        sts = InitFileWriter(&m_FileWriters.first, pParams->dstFileBuff[0]);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-        sts = InitFileWriter(&m_FileWriters.second, pParams->dstFileBuff[1]);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-    }
-    // ViewOutput mode: 3 bitstreams - 2 separate & 1 merged
-    else if ( (MVC_VIEWOUTPUT & pParams->MVC_flags) && (pParams->dstFileBuff.size() <= 3))
-    {
-        std::auto_ptr<CSmplBitstreamDuplicateWriter> first(new CSmplBitstreamDuplicateWriter);
-
-        // init first duplicate writer
-        MSDK_CHECK_POINTER(first.get(), MFX_ERR_MEMORY_ALLOC);
-        sts = first->Init(pParams->dstFileBuff[0]);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-        sts = first->InitDuplicate(pParams->dstFileBuff[2]);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-        // init second duplicate writer
-        std::auto_ptr<CSmplBitstreamDuplicateWriter> second(new CSmplBitstreamDuplicateWriter);
-        MSDK_CHECK_POINTER(second.get(), MFX_ERR_MEMORY_ALLOC);
-        sts = second->Init(pParams->dstFileBuff[1]);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-        sts = second->JoinDuplicate(first.get());
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-        m_FileWriters.first = first.release();
-        m_FileWriters.second = second.release();
-    }
-    // not ViewOutput mode
-    else
     {
         sts = InitFileWriter(&m_FileWriters.first, pParams->dstFileBuff[0]);
         MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
@@ -976,11 +701,10 @@ mfxStatus CEncodingPipeline::Init(sInputParams *pParams)
     // prepare input file reader
     sts = m_FileReader.Init(pParams->strSrcFile,
                             pParams->ColorFormat,
-                            pParams->numViews,
+                            1,
                             pParams->srcFileBuff);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-    m_MVCflags = pParams->MVC_flags;
 
     sts = InitFileWriters(pParams);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
@@ -1023,17 +747,7 @@ mfxStatus CEncodingPipeline::Init(sInputParams *pParams)
     sts = MFXQueryVersion(m_mfxSession , &version); // get real API version of the loaded library
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-    if ((pParams->MVC_flags & MVC_ENABLED) != 0 && !CheckVersion(&version, MSDK_FEATURE_MVC)) {
-        msdk_printf(MSDK_STRING("error: MVC is not supported in the %d.%d API version\n"),
-            version.Major, version.Minor);
-        return MFX_ERR_UNSUPPORTED;
 
-    }
-    if ((pParams->MVC_flags & MVC_VIEWOUTPUT) != 0 && !CheckVersion(&version, MSDK_FEATURE_MVC_VIEWOUTPUT)) {
-        msdk_printf(MSDK_STRING("error: MVC Viewoutput is not supported in the %d.%d API version\n"),
-            version.Major, version.Minor);
-        return MFX_ERR_UNSUPPORTED;
-    }
     if ((pParams->CodecId == MFX_CODEC_JPEG) && !CheckVersion(&version, MSDK_FEATURE_JPEG_ENCODE)) {
         msdk_printf(MSDK_STRING("error: Jpeg is not supported in the %d.%d API version\n"),
             version.Major, version.Minor);
@@ -1044,39 +758,6 @@ mfxStatus CEncodingPipeline::Init(sInputParams *pParams)
         msdk_printf(MSDK_STRING("error: Look ahead is not supported in the %d.%d API version\n"),
             version.Major, version.Minor);
         return MFX_ERR_UNSUPPORTED;
-    }
-
-    if (CheckVersion(&version, MSDK_FEATURE_PLUGIN_API)) {
-        /* Here we actually define the following codec initialization scheme:
-        *  1. If plugin path or guid is specified: we load user-defined plugin (example: HEVC encoder plugin)
-        *  2. If plugin path not specified:
-        *    2.a) we check if codec is distributed as a mediasdk plugin and load it if yes
-        *    2.b) if codec is not in the list of mediasdk plugins, we assume, that it is supported inside mediasdk library
-        */
-        if (pParams->pluginParams.type == MFX_PLUGINLOAD_TYPE_FILE && strlen(pParams->pluginParams.strPluginPath))
-        {
-            m_pUserModule.reset(new MFXVideoUSER(m_mfxSession));
-            m_pPlugin.reset(LoadPlugin(MFX_PLUGINTYPE_VIDEO_ENCODE, m_mfxSession, pParams->pluginParams.pluginGuid, 1, pParams->pluginParams.strPluginPath, (mfxU32)strlen(pParams->pluginParams.strPluginPath)));
-            if (m_pPlugin.get() == NULL) sts = MFX_ERR_UNSUPPORTED;
-        }
-        else
-        {
-            if (AreGuidsEqual(pParams->pluginParams.pluginGuid, MSDK_PLUGINGUID_NULL))
-            {
-                mfxIMPL impl = pParams->bUseHWLib ? MFX_IMPL_HARDWARE : MFX_IMPL_SOFTWARE;
-                pParams->pluginParams.pluginGuid = msdkGetPluginUID(impl, MSDK_VENCODE, pParams->CodecId);
-            }
-            if (!AreGuidsEqual(pParams->pluginParams.pluginGuid, MSDK_PLUGINGUID_NULL))
-            {
-                m_pPlugin.reset(LoadPlugin(MFX_PLUGINTYPE_VIDEO_ENCODE, m_mfxSession, pParams->pluginParams.pluginGuid, 1));
-                if (m_pPlugin.get() == NULL) sts = MFX_ERR_UNSUPPORTED;
-            }
-            if(sts==MFX_ERR_UNSUPPORTED)
-            {
-                msdk_printf(MSDK_STRING("Default plugin cannot be loaded (possibly you have to define plugin explicitly)\n"));
-            }
-        }
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
     }
 
     // set memory type
@@ -1092,12 +773,6 @@ mfxStatus CEncodingPipeline::Init(sInputParams *pParams)
     sts = InitMfxVppParams(pParams);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-    // MVC specific options
-    if (MVC_ENABLED & m_MVCflags)
-    {
-        sts = AllocAndInitMVCSeqDesc();
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-    }
 
     // create encoder
     m_pmfxENC = new MFXVideoENCODE(m_mfxSession);
@@ -1133,12 +808,10 @@ void CEncodingPipeline::Close()
     MSDK_SAFE_DELETE(m_pmfxENC);
     MSDK_SAFE_DELETE(m_pmfxVPP);
 
-    FreeMVCSeqDesc();
     FreeVppDoNotUse();
 
     DeleteFrames();
 
-    m_pPlugin.reset();
 
     m_TaskPool.Close();
     m_mfxSession.Close();
@@ -1317,7 +990,6 @@ mfxStatus CEncodingPipeline::Run()
             sts = m_FileReader.LoadNextFrame(pSurf);
             m_statFile.StopTimeMeasurement();
             MSDK_BREAK_ON_ERROR(sts);
-            if (MVC_ENABLED & m_MVCflags) currViewNum ^= 1; // Flip between 0 and 1 for ViewId
 
             // ... after we're done call Unlock
             if (m_bExternalAlloc)

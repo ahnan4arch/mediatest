@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #include "avc_spl.h"
-#include "sample_defs.h"
+#include "codec_defs.h"
 
 namespace ProtectedLibrary
 {

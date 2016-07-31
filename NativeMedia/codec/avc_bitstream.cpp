@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "avc_bitstream.h"
-#include "sample_defs.h"
+#include "codec_defs.h"
 
 namespace ProtectedLibrary
 {

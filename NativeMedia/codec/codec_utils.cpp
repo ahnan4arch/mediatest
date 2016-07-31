@@ -2,12 +2,12 @@
 #include <math.h>
 #include <iostream>
 
-#include "time_statistics.h"
-#include "sample_defs.h"
-#include "sample_utils.h"
 #include "mfxcommon.h"
 #include "mfxjpeg.h"
 #include "mfxvp8.h"
+
+#include "time_statistics.h"
+#include "codec_utils.h"
 
 #pragma warning( disable : 4748 )
 

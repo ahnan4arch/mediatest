@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "sample_defs.h"
+#include "codec_defs.h"
 #include "avc_structures.h"
 #include "avc_nal_spl.h"
 

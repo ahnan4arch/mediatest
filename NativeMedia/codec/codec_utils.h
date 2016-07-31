@@ -1,19 +1,4 @@
-/*********************************************************************************
-
-INTEL CORPORATION PROPRIETARY INFORMATION
-This software is supplied under the terms of a license agreement or nondisclosure
-agreement with Intel Corporation and may not be copied or disclosed except in
-accordance with the terms of that agreement.
-This sample was distributed or derived from the Intel's Media Samples package.
-The original version of this sample may be obtained from https://software.intel.com/en-us/intel-media-server-studio
-or https://software.intel.com/en-us/media-client-solutions-support.
-Copyright(c) 2005-2015 Intel Corporation. All Rights Reserved.
-
-**********************************************************************************/
-
-#ifndef __SAMPLE_UTILS_H__
-#define __SAMPLE_UTILS_H__
-
+#pragma once
 #include <stdio.h>
 #include <string>
 #include <sstream>
@@ -25,13 +10,7 @@ Copyright(c) 2005-2015 Intel Corporation. All Rights Reserved.
 #include "mfxjpeg.h"
 #include "mfxplugin.h"
 
-#include "vm/strings_defs.h"
-#include "vm/file_defs.h"
-#include "vm/time_defs.h"
-#include "vm/atomic_defs.h"
-
-#include "sample_types.h"
-
+#include "codec_defs.h"
 #include "abstract_splitter.h"
 #include "avc_bitstream.h"
 #include "avc_spl.h"
@@ -677,5 +656,3 @@ mfxStatus StrFormatToCodecFormatFourCC(msdk_char* strInput, mfxU32 &codecFormat)
 mfxI32 getMonitorType(msdk_char* str);
 
 void WaitForDeviceToBecomeFree(MFXVideoSession& session, mfxSyncPoint& syncPoint,mfxStatus& currentStatus);
-
-#endif //__SAMPLE_UTILS_H__

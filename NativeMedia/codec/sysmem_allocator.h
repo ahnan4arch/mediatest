@@ -1,16 +1,4 @@
-/* ****************************************************************************** *\
-
-INTEL CORPORATION PROPRIETARY INFORMATION
-This software is supplied under the terms of a license agreement or nondisclosure
-agreement with Intel Corporation and may not be copied or disclosed except in
-accordance with the terms of that agreement
-Copyright(c) 2008-2013 Intel Corporation. All Rights Reserved.
-
-\* ****************************************************************************** */
-
-#ifndef __SYSMEM_ALLOCATOR_H__
-#define __SYSMEM_ALLOCATOR_H__
-
+#pragma once
 #include <stdlib.h>
 #include "base_allocator.h"
 
@@ -65,5 +53,3 @@ public:
     virtual mfxStatus UnlockBuffer(mfxMemId mid);
     virtual mfxStatus FreeBuffer(mfxMemId mid);
 };
-
-#endif // __SYSMEM_ALLOCATOR_H__

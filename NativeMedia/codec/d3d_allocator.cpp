@@ -1,23 +1,13 @@
-/*********************************************************************************
 
-INTEL CORPORATION PROPRIETARY INFORMATION
-This software is supplied under the terms of a license agreement or nondisclosure
-agreement with Intel Corporation and may not be copied or disclosed except in
-accordance with the terms of that agreement
-Copyright(c) 2008-2014 Intel Corporation. All Rights Reserved.
-
-**********************************************************************************/
 #include "stdafx.h"
 
-#include "sample_defs.h"
-
-#if defined(_WIN32) || defined(_WIN64)
 
 #include <objbase.h>
 #include <initguid.h>
 #include <assert.h>
 #include <d3d9.h>
 
+#include "codec_defs.h"
 #include "d3d_allocator.h"
 
 #define D3DFMT_NV12 (D3DFORMAT)MAKEFOURCC('N','V','1','2')
@@ -340,5 +330,3 @@ mfxStatus D3DFrameAllocator::AllocImpl(mfxFrameAllocRequest *request, mfxFrameAl
     }
     return MFX_ERR_NONE;
 }
-
-#endif // #if defined(_WIN32) || defined(_WIN64)

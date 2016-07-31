@@ -1,16 +1,4 @@
-/* ****************************************************************************** *\
-
-INTEL CORPORATION PROPRIETARY INFORMATION
-This software is supplied under the terms of a license agreement or nondisclosure
-agreement with Intel Corporation and may not be copied or disclosed except in
-accordance with the terms of that agreement
-Copyright(c) 2008-2013 Intel Corporation. All Rights Reserved.
-
-\* ****************************************************************************** */
-
-#ifndef __BASE_ALLOCATOR_H__
-#define __BASE_ALLOCATOR_H__
-
+#pragma once
 #include <list>
 #include <string.h>
 #include <functional>
@@ -180,5 +168,3 @@ private:
     static mfxStatus MFX_CDECL  Free_(mfxHDL pthis, mfxMemId mid);
 };
 
-
-#endif // __BASE_ALLOCATOR_H__

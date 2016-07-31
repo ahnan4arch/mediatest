@@ -1,23 +1,6 @@
-//* ////////////////////////////////////////////////////////////////////////////// */
-//*
-//
-//              INTEL CORPORATION PROPRIETARY INFORMATION
-//  This software is supplied under the terms of a license  agreement or
-//  nondisclosure agreement with Intel Corporation and may not be copied
-//  or disclosed except in accordance with the terms of that agreement.
-//  This sample was distributed or derived from the Intel's Media Samples package.
-//  The original version of this sample may be obtained from https://software.intel.com/en-us/intel-media-server-studio
-//  or https://software.intel.com/en-us/media-client-solutions-support.
-//        Copyright (c) 2010-2015 Intel Corporation. All Rights Reserved.
-//
-//
-//*/
-
-#ifndef _ABSTRACT_SPL_H__
-#define _ABSTRACT_SPL_H__
-
+#pragma once
 #include "mfxstructures.h"
-#include "sample_defs.h"
+#include "codec_defs.h"
 
 enum SliceTypeCode {
     TYPE_I = 0,
@@ -65,4 +48,3 @@ public:
     virtual void ResetCurrentState() = 0;
 };
 
-#endif // _ABSTRACT_SPL_H__

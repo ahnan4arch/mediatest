@@ -1,30 +1,11 @@
-//* ////////////////////////////////////////////////////////////////////////////// */
-//*
-//
-//              INTEL CORPORATION PROPRIETARY INFORMATION
-//  This software is supplied under the terms of a license  agreement or
-//  nondisclosure agreement with Intel Corporation and may not be copied
-//  or disclosed except in accordance with the terms of that agreement.
-//  This sample was distributed or derived from the Intel's Media Samples package.
-//  The original version of this sample may be obtained from https://software.intel.com/en-us/intel-media-server-studio
-//  or https://software.intel.com/en-us/media-client-solutions-support.
-//        Copyright (c) 2005-2015 Intel Corporation. All Rights Reserved.
-//
-//
-//*/
+#pragma once
 
-#ifndef __PIPELINE_ENCODE_H__
-#define __PIPELINE_ENCODE_H__
+#include "codec_defs.h"
 
-#include "sample_defs.h"
-#include "hw_device.h"
-
-#ifdef D3D_SURFACES_SUPPORT
 #pragma warning(disable : 4201)
-#endif
 
-#include "sample_utils.h"
-#include "sample_params.h"
+
+#include "codec_utils.h"
 #include "base_allocator.h"
 #include "time_statistics.h"
 
@@ -38,7 +19,6 @@
 #include <vector>
 #include <memory>
 
-#include "plugin_loader.h"
 
 msdk_tick time_get_tick(void);
 msdk_tick time_get_frequency(void);
@@ -65,7 +45,6 @@ struct sInputParams
     mfxU16 nHeight; // source picture height
     mfxF64 dFrameRate;
     mfxU16 nBitRate;
-    mfxU16 MVC_flags;
     mfxU16 nGopPicSize;
     mfxU16 nGopRefDist;
     mfxU16 nNumRefFrame;
@@ -75,8 +54,6 @@ struct sInputParams
 
     mfxU16 nQuality; // quality parameter for JPEG encoder
 
-    mfxU32 numViews; // number of views for Multi-View Codec
-
     mfxU16 nDstWidth; // destination picture width, specified if resizing required
     mfxU16 nDstHeight; // destination picture height, specified if resizing required
 
@@ -85,14 +62,8 @@ struct sInputParams
 
     msdk_char strSrcFile[MSDK_MAX_FILENAME_LEN];
 
-    sPluginParams pluginParams;
-
     std::vector<msdk_char*> srcFileBuff;
     std::vector<msdk_char*> dstFileBuff;
-
-    mfxU32  HEVCPluginVersion;
-    mfxU8 nRotationAngle; // if specified, enables rotation plugin in mfx pipeline
-    msdk_char strPluginDLLPath[MSDK_MAX_FILENAME_LEN]; // plugin dll path and name
 
     mfxU16 nAsyncDepth; // depth of asynchronous pipeline, this number can be tuned to achieve better performance
     mfxU16 gpuCopy; // GPU Copy mode (three-state option)
@@ -105,7 +76,6 @@ struct sInputParams
     mfxU16 nQPB;
 
     mfxU16 nNumSlice;
-    bool UseRegionEncode;
 };
 
 struct sTask
@@ -160,8 +130,6 @@ public:
     virtual mfxStatus ResetMFXComponents(sInputParams* pParams);
     virtual mfxStatus ResetDevice();
 
-    void SetMultiView();
-    void SetNumView(mfxU32 numViews) { m_nNumView = numViews; }
     virtual void  PrintInfo();
 
 protected:
@@ -177,11 +145,6 @@ protected:
     mfxVideoParam m_mfxEncParams;
     mfxVideoParam m_mfxVppParams;
 
-    mfxU16 m_MVCflags; // MVC codec is in use
-
-    std::auto_ptr<MFXVideoUSER> m_pUserModule;
-    std::auto_ptr<MFXPlugin> m_pPlugin;
-
     MFXFrameAllocator* m_pMFXAllocator;
     mfxAllocatorParams* m_pmfxAllocatorParams;
     MemType m_memType;
@@ -192,12 +155,9 @@ protected:
     mfxFrameAllocResponse m_EncResponse;  // memory allocation response for encoder
     mfxFrameAllocResponse m_VppResponse;  // memory allocation response for vpp
 
-    mfxU32 m_nNumView;
-
     // for disabling VPP algorithms
     mfxExtVPPDoNotUse m_VppDoNotUse;
     // for MVC encoder and VPP configuration
-    mfxExtMVCSeqDesc m_MVCSeqDesc;
     mfxExtCodingOption m_CodingOption;
     // for look ahead BRC configuration
     mfxExtCodingOption2 m_CodingOption2;
@@ -207,8 +167,6 @@ protected:
     // external parameters for each component are stored in a vector
     std::vector<mfxExtBuffer*> m_VppExtParams;
     std::vector<mfxExtBuffer*> m_EncExtParams;
-
-    CHWDevice *m_hwdev;
 
     CTimeStatistics m_statOverall;
     CTimeStatistics m_statFile;
@@ -222,14 +180,8 @@ protected:
     virtual mfxStatus AllocAndInitVppDoNotUse();
     virtual void FreeVppDoNotUse();
 
-    virtual mfxStatus AllocAndInitMVCSeqDesc();
-    virtual void FreeMVCSeqDesc();
-
     virtual mfxStatus CreateAllocator();
     virtual void DeleteAllocator();
-
-    virtual mfxStatus CreateHWDevice();
-    virtual void DeleteHWDevice();
 
     virtual mfxStatus AllocFrames();
     virtual void DeleteFrames();
@@ -240,5 +192,3 @@ protected:
     virtual MFXVideoSession& GetFirstSession(){return m_mfxSession;}
     virtual MFXVideoENCODE* GetFirstEncoder(){return m_pmfxENC;}
 };
-
-#endif // __PIPELINE_ENCODE_H__

@@ -1,35 +1,18 @@
-/*****************************************************************************
+#pragma once
 
-INTEL CORPORATION PROPRIETARY INFORMATION
-This software is supplied under the terms of a license agreement or
-nondisclosure agreement with Intel Corporation and may not be copied
-or disclosed except in accordance with the terms of that agreement.
-This sample was distributed or derived from the Intel's Media Samples package.
-The original version of this sample may be obtained from https://software.intel.com/en-us/intel-media-server-studio
-or https://software.intel.com/en-us/media-client-solutions-support.
-Copyright(c) 2005-2015 Intel Corporation. All Rights Reserved.
 
-*****************************************************************************/
-
-#ifndef __PIPELINE_DECODE_H__
-#define __PIPELINE_DECODE_H__
-
-#include "sample_defs.h"
-
-#if D3D_SURFACES_SUPPORT
 #pragma warning(disable : 4201)
 #include <d3d9.h>
 #include <dxva2api.h>
-#endif
 
 #include <vector>
-#include "hw_device.h"
-#include "decode_render.h"
-#include "mfx_buffering.h"
 #include <memory>
 
-#include "sample_utils.h"
-#include "sample_params.h"
+#include "win32event.h"
+#include "codec_defs.h"
+#include "mfx_buffering.h"
+
+#include "codec_utils.h"
 #include "base_allocator.h"
 
 #include "mfxmvc.h"
@@ -39,8 +22,7 @@ Copyright(c) 2005-2015 Intel Corporation. All Rights Reserved.
 #include "mfxvideo.h"
 #include "mfxvideo++.h"
 
-#include "plugin_loader.h"
-#include "general_allocator.h"
+using namespace WinRTCSDK;
 
 enum MemType {
     SYSTEM_MEMORY = 0x00,
@@ -60,23 +42,12 @@ struct sInputParams
     eWorkMode mode;
     MemType memType;
     bool    bUseHWLib; // true if application wants to use HW mfx library
-    bool    bIsMVC; // true if Multi-View Codec is in use
     bool    bLowLat; // low latency mode
     bool    bCalLat; // latency calculation
     mfxU32  nMaxFPS; //rendering limited by certain fps
-    mfxU32  nWallCell;
-    mfxU32  nWallW; //number of windows located in each row
-    mfxU32  nWallH; //number of windows located in each column
-    mfxU32  nWallMonitor; //monitor id, 0,1,.. etc
-    bool    bWallNoTitle; //whether to show title for each window with fps value
-    mfxU32  nWallTimeout; //timeout for -wall option
-    mfxU32  numViews; // number of views for Multi-View Codec
     mfxU32  nRotation; // rotation for Motion JPEG Codec
     mfxU16  nAsyncDepth; // asyncronous queue
     mfxU16  gpuCopy; // GPU Copy mode (three-state option)
-    mfxU16  nThreadsNum;
-    mfxI32  SchedulingType;
-    mfxI32  Priority;
 
     mfxU16  scrWidth;
     mfxU16  scrHeight;
@@ -88,19 +59,8 @@ struct sInputParams
     mfxU32  nFrames;
     mfxU16  eDeinterlace;
 
-    bool    bPerfMode;
-    bool    bRenderWin;
-    mfxU32  nRenderWinX;
-    mfxU32  nRenderWinY;
-
-    mfxI32  monitorType;
-#if defined(LIBVA_SUPPORT)
-    mfxI32  libvaBackend;
-#endif // defined(MFX_LIBVA_SUPPORT)
-
     msdk_char     strSrcFile[MSDK_MAX_FILENAME_LEN];
     msdk_char     strDstFile[MSDK_MAX_FILENAME_LEN];
-    sPluginParams pluginParams;
 
     sInputParams()
     {
@@ -155,7 +115,6 @@ public:
     virtual mfxStatus ResetDecoder(sInputParams *pParams);
     virtual mfxStatus ResetDevice();
 
-    void SetMultiView();
     void SetExtBuffersFlag()       { m_bIsExtBuffers = true; }
     virtual void PrintInfo();
 
@@ -168,8 +127,6 @@ protected: // functions
     mfxStatus AllocateExtBuffer();
     virtual void DeleteExtBuffers();
 
-    virtual mfxStatus AllocateExtMVCBuffers();
-    virtual void    DeallocateExtMVCBuffers();
 
     virtual void AttachExtParam();
 
@@ -209,8 +166,7 @@ protected: // variables
     MFXVideoVPP*            m_pmfxVPP;
     mfxVideoParam           m_mfxVideoParams;
     mfxVideoParam           m_mfxVppVideoParams;
-    std::auto_ptr<MFXVideoUSER>  m_pUserModule;
-    std::auto_ptr<MFXPlugin> m_pPlugin;
+
     std::vector<mfxExtBuffer *> m_ExtBuffers;
 
     GeneralAllocator*       m_pGeneralAllocator;
@@ -226,14 +182,14 @@ protected: // variables
     msdkOutputSurface*      m_pCurrentFreeOutputSurface; // surface detached from free output surfaces array
     msdkOutputSurface*      m_pCurrentOutputSurface; // surface detached from output surfaces array
 
-    MSDKSemaphore*          m_pDeliverOutputSemaphore; // to access to DeliverOutput method
-    MSDKEvent*              m_pDeliveredEvent; // to signal when output surfaces will be processed
+	Win32Semaphore*         m_pDeliverOutputSemaphore; // to access to DeliverOutput method
+	Win32Event*             m_pDeliveredEvent; // to signal when output surfaces will be processed
     mfxStatus               m_error; // error returned by DeliverOutput method
     bool                    m_bStopDeliverLoop;
 
     eWorkMode               m_eWorkMode; // work mode for the pipeline
-    bool                    m_bIsMVC; // enables MVC mode (need to support several files as an output)
-    bool                    m_bIsExtBuffers; // indicates if external buffers were allocated
+
+	bool                    m_bIsExtBuffers; // indicates if external buffers were allocated
     bool                    m_bIsVideoWall; // indicates special mode: decoding will be done in a loop
     bool                    m_bIsCompleteFrame;
     mfxU32                  m_fourcc; // color format of vpp out, i420 by default
@@ -254,29 +210,8 @@ protected: // variables
     mfxExtVPPDeinterlacing  m_VppDeinterlacing;
     std::vector<mfxExtBuffer*> m_VppExtParams;
 
-    CHWDevice               *m_hwdev;
-#if D3D_SURFACES_SUPPORT
-    IGFXS3DControl          *m_pS3DControl;
-
-    CDecodeD3DRender         m_d3dRender;
-#endif
-
-    bool                    m_bRenderWin;
-    mfxU32                  m_nRenderWinX;
-    mfxU32                  m_nRenderWinY;
-    mfxU32                  m_nRenderWinW;
-    mfxU32                  m_nRenderWinH;
-
-    mfxU32                  m_export_mode;
-    mfxI32                  m_monitorType;
-#if defined(LIBVA_SUPPORT)
-    mfxI32                  m_libvaBackend;
-    bool                    m_bPerfMode;
-#endif // defined(MFX_LIBVA_SUPPORT)
 
 private:
     CDecodingPipeline(const CDecodingPipeline&);
     void operator=(const CDecodingPipeline&);
 };
-
-#endif // __PIPELINE_DECODE_H__
