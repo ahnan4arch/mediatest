@@ -17,25 +17,13 @@ struct directxMemId
     HANDLE m_handle;
 };
 
-struct D3DAllocatorParams : mfxAllocatorParams
-{
-    IDirect3DDeviceManager9 *pManager;
-    DWORD surfaceUsage;
-
-    D3DAllocatorParams()
-        : pManager()
-        , surfaceUsage()
-    {
-    }
-};
-
 class D3DFrameAllocator: public BaseFrameAllocator
 {
 public:
     D3DFrameAllocator();
     virtual ~D3DFrameAllocator();
 
-    virtual mfxStatus Init(mfxAllocatorParams *pParams);
+    virtual mfxStatus Init(IDirect3DDeviceManager9 *pManager);
     virtual mfxStatus Close();
 
     virtual IDirect3DDeviceManager9* GetDeviceManager()

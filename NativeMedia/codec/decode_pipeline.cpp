@@ -31,9 +31,11 @@ CDecodingPipeline::CDecodingPipeline()
     MSDK_ZERO_MEMORY(m_mfxVideoParams);
     MSDK_ZERO_MEMORY(m_mfxVppVideoParams);
 
-    m_pGeneralAllocator = NULL;
-    m_pmfxAllocatorParams = NULL;
-    m_memType = SYSTEM_MEMORY;
+	m_pFrameAllocator = NULL;
+	m_pSysMemAllocator = NULL;
+	m_pD3DAllocator = NULL; 
+
+	m_memType = SYSTEM_MEMORY;
     m_bExternalAlloc = false;
     m_bDecOutSysmem = false;
     MSDK_ZERO_MEMORY(m_mfxResponse);
@@ -74,8 +76,6 @@ CDecodingPipeline::CDecodingPipeline()
     m_VppDeinterlacing.Header.BufferId = MFX_EXTBUFF_VPP_DEINTERLACING;
     m_VppDeinterlacing.Header.BufferSz = sizeof(m_VppDeinterlacing);
 
-//    m_hwdev = NULL;
-
 }
 
 CDecodingPipeline::~CDecodingPipeline()
@@ -83,9 +83,12 @@ CDecodingPipeline::~CDecodingPipeline()
     Close();
 }
 
-mfxStatus CDecodingPipeline::Init(sInputParams *pParams)
+mfxStatus CDecodingPipeline::Init(sInputParams *pParams, IDirect3DDeviceManager9* pD3DMan)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
+
+	// set the d3d manager
+	m_pD3DManager = pD3DMan;
 
     mfxStatus sts = MFX_ERR_NONE;
 
@@ -341,12 +344,6 @@ void CDecodingPipeline::Close()
     return;
 }
 
-mfxStatus CDecodingPipeline::CreateRenderingWindow(sInputParams *pParams, bool try_s3d)
-{
-    mfxStatus sts = MFX_ERR_NONE;
-    return MFX_ERR_NONE;
-}
-
 mfxStatus CDecodingPipeline::InitMfxParams(sInputParams *pParams)
 {
     MSDK_CHECK_POINTER(m_pmfxDEC, MFX_ERR_NULL_PTR);
@@ -515,15 +512,6 @@ mfxStatus CDecodingPipeline::InitVppParams()
     m_mfxVppVideoParams.ExtParam = &m_VppExtParams[0];
     m_mfxVppVideoParams.NumExtParam = (mfxU16)m_VppExtParams.size();
     return MFX_ERR_NONE;
-}
-
-mfxStatus CDecodingPipeline::CreateHWDevice()
-{
-    return MFX_ERR_NONE;
-}
-
-mfxStatus CDecodingPipeline::ResetDevice()
-{
 }
 
 mfxStatus CDecodingPipeline::AllocFrames()
@@ -743,8 +731,8 @@ void CDecodingPipeline::DeleteFrames()
 void CDecodingPipeline::DeleteAllocator()
 {
     // delete allocator
-    MSDK_SAFE_DELETE(m_pGeneralAllocator);
-    MSDK_SAFE_DELETE(m_pmfxAllocatorParams);
+    MSDK_SAFE_DELETE(m_pD3DAllocator);
+    MSDK_SAFE_DELETE(m_pSysMemAllocator);
 }
 
 // function for allocating a specific external buffer

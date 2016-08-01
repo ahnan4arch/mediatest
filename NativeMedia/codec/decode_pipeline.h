@@ -14,6 +14,8 @@
 
 #include "codec_utils.h"
 #include "base_allocator.h"
+#include "d3d_allocator.h"
+#include "sysmem_allocator.h"
 
 #include "mfxmvc.h"
 #include "mfxjpeg.h"
@@ -109,25 +111,21 @@ public:
     CDecodingPipeline();
     virtual ~CDecodingPipeline();
 
-    virtual mfxStatus Init(sInputParams *pParams);
+    virtual mfxStatus Init(sInputParams *pParams, IDirect3DDeviceManager9* pD3DMan);
     virtual mfxStatus RunDecoding();
     virtual void Close();
     virtual mfxStatus ResetDecoder(sInputParams *pParams);
-    virtual mfxStatus ResetDevice();
 
     void SetExtBuffersFlag()       { m_bIsExtBuffers = true; }
     virtual void PrintInfo();
 
 protected: // functions
-    virtual mfxStatus CreateRenderingWindow(sInputParams *pParams, bool try_s3d);
     virtual mfxStatus InitMfxParams(sInputParams *pParams);
 
     // function for allocating a specific external buffer
     template <typename Buffer>
     mfxStatus AllocateExtBuffer();
     virtual void DeleteExtBuffers();
-
-
     virtual void AttachExtParam();
 
     virtual mfxStatus InitVppParams();
@@ -135,7 +133,6 @@ protected: // functions
     virtual bool IsVppRequired(sInputParams *pParams);
 
     virtual mfxStatus CreateAllocator();
-    virtual mfxStatus CreateHWDevice();
     virtual mfxStatus AllocFrames();
     virtual void DeleteFrames();
     virtual void DeleteAllocator();
@@ -169,9 +166,11 @@ protected: // variables
 
     std::vector<mfxExtBuffer *> m_ExtBuffers;
 
-    GeneralAllocator*       m_pGeneralAllocator;
-    mfxAllocatorParams*     m_pmfxAllocatorParams;
-    MemType                 m_memType;      // memory type of surfaces to use
+    BaseFrameAllocator*     m_pFrameAllocator;
+	SysMemFrameAllocator *  m_pSysMemAllocator;
+	D3DFrameAllocator*      m_pD3DAllocator;
+
+	MemType                 m_memType;      // memory type of surfaces to use
     bool                    m_bExternalAlloc; // use memory allocator as external for Media SDK
     bool                    m_bDecOutSysmem; // use system memory between Decoder and VPP, if false - video memory
     mfxFrameAllocResponse   m_mfxResponse; // memory allocation response for decoder
@@ -210,6 +209,7 @@ protected: // variables
     mfxExtVPPDeinterlacing  m_VppDeinterlacing;
     std::vector<mfxExtBuffer*> m_VppExtParams;
 
+	IDirect3DDeviceManager9* m_pD3DManager;
 
 private:
     CDecodingPipeline(const CDecodingPipeline&);
