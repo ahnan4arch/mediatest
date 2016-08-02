@@ -44,8 +44,6 @@ struct sInputParams
     eWorkMode mode;
     MemType memType;
     bool    bUseHWLib; // true if application wants to use HW mfx library
-    bool    bLowLat; // low latency mode
-    bool    bCalLat; // latency calculation
     mfxU32  nMaxFPS; //rendering limited by certain fps
     mfxU32  nRotation; // rotation for Motion JPEG Codec
     mfxU16  nAsyncDepth; // asyncronous queue
@@ -150,7 +148,7 @@ protected: // functions
 
     virtual mfxStatus DeliverLoop(void);
 
-    static unsigned int MFX_STDCALL DeliverThreadFunc(void* ctx);
+    static DWORD MFX_STDCALL DeliverThreadFunc(void* ctx);
 
 protected: // variables
     CSmplYUVWriter          m_FileWriter;
@@ -189,7 +187,6 @@ protected: // variables
     eWorkMode               m_eWorkMode; // work mode for the pipeline
 
 	bool                    m_bIsExtBuffers; // indicates if external buffers were allocated
-    bool                    m_bIsVideoWall; // indicates special mode: decoding will be done in a loop
     bool                    m_bIsCompleteFrame;
     mfxU32                  m_fourcc; // color format of vpp out, i420 by default
     bool                    m_bPrintLatency;

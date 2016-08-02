@@ -11,6 +11,7 @@
 SysMemFrameAllocator::SysMemFrameAllocator()
 : m_pBufferAllocator(0), m_bOwnBufferAllocator(false)
 {
+	Init();
 }
 
 SysMemFrameAllocator::~SysMemFrameAllocator()

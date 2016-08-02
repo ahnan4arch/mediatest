@@ -1757,40 +1757,8 @@ mfxStatus StrFormatToCodecFormatFourCC(msdk_char* strInput, mfxU32 &codecFormat)
 
 mfxI32 getMonitorType(msdk_char* str)
 {
-    struct {
-      const msdk_char* str;
-      mfxI32 mfx_type;
-    } table[] = {
-#define __DECLARE(type) { MSDK_STRING(#type), MFX_MONITOR_ ## type }
-      __DECLARE(Unknown),
-      __DECLARE(VGA),
-      __DECLARE(DVII),
-      __DECLARE(DVID),
-      __DECLARE(DVIA),
-      __DECLARE(Composite),
-      __DECLARE(SVIDEO),
-      __DECLARE(LVDS),
-      __DECLARE(Component),
-      __DECLARE(9PinDIN),
-      __DECLARE(HDMIA),
-      __DECLARE(HDMIB),
-      __DECLARE(eDP),
-      __DECLARE(TV),
-      __DECLARE(DisplayPort),
-#if defined(DRM_MODE_CONNECTOR_VIRTUAL) // from libdrm 2.4.59
-      __DECLARE(VIRTUAL),
-#endif
-#if defined(DRM_MODE_CONNECTOR_DSI) // from libdrm 2.4.59
-      __DECLARE(DSI)
-#endif
-#undef __DECLARE
-    };
-    for (unsigned int i=0; i < sizeof(table)/sizeof(table[0]); ++i) {
-      if (0 == msdk_strcmp(str, table[i].str)) {
-        return table[i].mfx_type;
-      }
-    }
-    return MFX_MONITOR_MAXNUMBER;
+
+    return 0;
 }
 
 CH264FrameReader::CH264FrameReader()

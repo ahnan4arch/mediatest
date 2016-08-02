@@ -27,8 +27,22 @@
 
 typedef mfxI64 msdk_tick;
 typedef LARGE_INTEGER mfxTime;
-msdk_tick msdk_time_get_tick(void);
-msdk_tick msdk_time_get_frequency(void);
+
+inline msdk_tick msdk_time_get_tick(void)
+{
+    LARGE_INTEGER t1;
+
+    QueryPerformanceCounter(&t1);
+    return t1.QuadPart;
+}
+
+inline msdk_tick msdk_time_get_frequency(void)
+{
+    LARGE_INTEGER t1;
+
+    QueryPerformanceFrequency(&t1);
+    return t1.QuadPart;
+}
 
 #define MSDK_DEC_WAIT_INTERVAL 300000
 #define MSDK_ENC_WAIT_INTERVAL 300000

@@ -40,7 +40,7 @@ D3DFORMAT ConvertMfxFourccToD3dFormat(mfxU32 fourcc)
 }
 
 D3DFrameAllocator::D3DFrameAllocator()
-: m_decoderService(0), m_processorService(0), m_hDecoder(0), m_hProcessor(0), m_manager(0), m_surfaceUsage(0)
+: m_decoderService(0), m_processorService(0), m_hDecoder(0), m_hProcessor(0), m_manager(0)
 {
 }
 
@@ -49,15 +49,10 @@ D3DFrameAllocator::~D3DFrameAllocator()
     Close();
 }
 
-mfxStatus D3DFrameAllocator::Init(mfxAllocatorParams *pParams)
+mfxStatus D3DFrameAllocator::Init(IDirect3DDeviceManager9 *pManager)
 {
-    D3DAllocatorParams *pd3dParams = 0;
-    pd3dParams = dynamic_cast<D3DAllocatorParams *>(pParams);
-    if (!pd3dParams)
-        return MFX_ERR_NOT_INITIALIZED;
 
-    m_manager = pd3dParams->pManager;
-    m_surfaceUsage = pd3dParams->surfaceUsage;
+    m_manager = pManager;
 
     return MFX_ERR_NONE;
 }
@@ -300,7 +295,7 @@ mfxStatus D3DFrameAllocator::AllocImpl(mfxFrameAllocRequest *request, mfxFrameAl
     if (request->Type & MFX_MEMTYPE_EXTERNAL_FRAME) {
         for (int i = 0; i < request->NumFrameSuggested; i++) {
             hr = videoService->CreateSurface(request->Info.Width, request->Info.Height, 0,  format,
-                                                D3DPOOL_DEFAULT, m_surfaceUsage, target, &dxMids[i].m_surface, &dxMids[i].m_handle);
+                                                D3DPOOL_DEFAULT, 0, target, &dxMids[i].m_surface, &dxMids[i].m_handle);
             if (FAILED(hr)) {
                 ReleaseResponse(response);
                 MSDK_SAFE_FREE(dxMids);
@@ -316,7 +311,7 @@ mfxStatus D3DFrameAllocator::AllocImpl(mfxFrameAllocRequest *request, mfxFrameAl
             return MFX_ERR_MEMORY_ALLOC;
         }
         hr = videoService->CreateSurface(request->Info.Width, request->Info.Height, request->NumFrameSuggested - 1,  format,
-                                            D3DPOOL_DEFAULT, m_surfaceUsage, target, dxSrf.get(), NULL);
+                                            D3DPOOL_DEFAULT, 0, target, dxSrf.get(), NULL);
         if (FAILED(hr))
         {
             MSDK_SAFE_FREE(dxMids);

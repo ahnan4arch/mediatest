@@ -133,6 +133,7 @@
     <ClInclude Include="..\NativeMedia\codec\codec_defs.h" />
     <ClInclude Include="..\NativeMedia\codec\codec_utils.h" />
     <ClInclude Include="..\NativeMedia\codec\sysmem_allocator.h" />
+    <ClInclude Include="..\NativeMedia\codec\sys_primitives.h" />
     <ClInclude Include="..\NativeMedia\codec\time_statistics.h" />
     <ClInclude Include="..\NativeMedia\ComPtrDefs.h" />
     <ClInclude Include="..\NativeMedia\D3D9Renderer.h" />

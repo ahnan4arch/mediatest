@@ -205,5 +205,8 @@
     <ClInclude Include="..\NativeMedia\codec\encode_pipeline.h">
       <Filter>codec</Filter>
     </ClInclude>
+    <ClInclude Include="..\NativeMedia\codec\sys_primitives.h">
+      <Filter>codec</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
