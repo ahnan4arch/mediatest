@@ -92,11 +92,11 @@
     <ClCompile Include="..\NativeMedia\codec\avc_spl.cpp" />
     <ClCompile Include="..\NativeMedia\codec\base_allocator.cpp" />
     <ClCompile Include="..\NativeMedia\codec\d3d_allocator.cpp" />
+    <ClCompile Include="..\NativeMedia\codec\encode.cpp" />
     <ClCompile Include="..\NativeMedia\codec\mfx_buffering.cpp" />
     <ClCompile Include="..\NativeMedia\codec\decode_pipeline.cpp" />
     <ClCompile Include="..\NativeMedia\codec\encode_pipeline.cpp" />
     <ClCompile Include="..\NativeMedia\codec\decode.cpp" />
-    <ClCompile Include="..\NativeMedia\codec\encode.cpp" />
     <ClCompile Include="..\NativeMedia\codec\codec_utils.cpp" />
     <ClCompile Include="..\NativeMedia\codec\sysmem_allocator.cpp" />
     <ClCompile Include="..\NativeMedia\D3D9Renderer.cpp" />

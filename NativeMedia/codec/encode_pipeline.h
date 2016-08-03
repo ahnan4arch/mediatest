@@ -146,8 +146,8 @@ protected:
     mfxVideoParam m_mfxVppParams;
 
     MFXFrameAllocator* m_pMFXAllocator;
-    mfxAllocatorParams* m_pmfxAllocatorParams;
-    MemType m_memType;
+
+	MemType m_memType;
     bool m_bExternalAlloc; // use memory allocator as external for Media SDK
 
     mfxFrameSurface1* m_pEncSurfaces; // frames array for encoder input (vpp output)

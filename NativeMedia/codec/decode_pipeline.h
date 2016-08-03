@@ -57,7 +57,6 @@ struct sInputParams
 
     mfxU32  fourcc;
     mfxU32  nFrames;
-    mfxU16  eDeinterlace;
 
     msdk_char     strSrcFile[MSDK_MAX_FILENAME_LEN];
     msdk_char     strDstFile[MSDK_MAX_FILENAME_LEN];
@@ -126,9 +125,6 @@ protected: // functions
     virtual void DeleteExtBuffers();
     virtual void AttachExtParam();
 
-    virtual mfxStatus InitVppParams();
-    virtual mfxStatus AllocAndInitVppFilters();
-    virtual bool IsVppRequired(sInputParams *pParams);
 
     virtual mfxStatus CreateAllocator();
     virtual mfxStatus AllocFrames();
@@ -158,9 +154,7 @@ protected: // variables
     MFXVideoSession         m_mfxSession;
     mfxIMPL                 m_impl;
     MFXVideoDECODE*         m_pmfxDEC;
-    MFXVideoVPP*            m_pmfxVPP;
     mfxVideoParam           m_mfxVideoParams;
-    mfxVideoParam           m_mfxVppVideoParams;
 
     std::vector<mfxExtBuffer *> m_ExtBuffers;
 
@@ -172,10 +166,8 @@ protected: // variables
     bool                    m_bExternalAlloc; // use memory allocator as external for Media SDK
     bool                    m_bDecOutSysmem; // use system memory between Decoder and VPP, if false - video memory
     mfxFrameAllocResponse   m_mfxResponse; // memory allocation response for decoder
-    mfxFrameAllocResponse   m_mfxVppResponse;   // memory allocation response for vpp
 
     msdkFrameSurface*       m_pCurrentFreeSurface; // surface detached from free surfaces array
-    msdkFrameSurface*       m_pCurrentFreeVppSurface; // VPP surface detached from free VPP surfaces array
     msdkOutputSurface*      m_pCurrentFreeOutputSurface; // surface detached from free output surfaces array
     msdkOutputSurface*      m_pCurrentOutputSurface; // surface detached from output surfaces array
 
@@ -191,20 +183,11 @@ protected: // variables
     mfxU32                  m_fourcc; // color format of vpp out, i420 by default
     bool                    m_bPrintLatency;
 
-    mfxU16                  m_vppOutWidth;
-    mfxU16                  m_vppOutHeight;
-
     mfxU32                  m_nTimeout; // enables timeout for video playback, measured in seconds
     mfxU32                  m_nMaxFps; // limit of fps, if isn't specified equal 0.
     mfxU32                  m_nFrames; //limit number of output frames
 
-    mfxU16                  m_diMode;
-    bool                    m_bVppIsUsed;
     std::vector<msdk_tick>  m_vLatency;
-
-    mfxExtVPPDoNotUse       m_VppDoNotUse;      // for disabling VPP algorithms
-    mfxExtVPPDeinterlacing  m_VppDeinterlacing;
-    std::vector<mfxExtBuffer*> m_VppExtParams;
 
 	IDirect3DDeviceManager9* m_pD3DManager;
 

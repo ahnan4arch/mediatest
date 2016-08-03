@@ -83,13 +83,13 @@
     <ClCompile Include="..\NativeMedia\codec\decode.cpp">
       <Filter>codec</Filter>
     </ClCompile>
-    <ClCompile Include="..\NativeMedia\codec\encode.cpp">
-      <Filter>codec</Filter>
-    </ClCompile>
     <ClCompile Include="..\NativeMedia\codec\decode_pipeline.cpp">
       <Filter>codec</Filter>
     </ClCompile>
     <ClCompile Include="..\NativeMedia\codec\encode_pipeline.cpp">
+      <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\codec\encode.cpp">
       <Filter>codec</Filter>
     </ClCompile>
   </ItemGroup>

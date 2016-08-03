@@ -562,11 +562,6 @@ mfxStatus CEncodingPipeline::CreateAllocator()
             m_pMFXAllocator = new D3DFrameAllocator;
             MSDK_CHECK_POINTER(m_pMFXAllocator, MFX_ERR_MEMORY_ALLOC);
 
-            D3DAllocatorParams *pd3dAllocParams = new D3DAllocatorParams;
-            MSDK_CHECK_POINTER(pd3dAllocParams, MFX_ERR_MEMORY_ALLOC);
-            pd3dAllocParams->pManager = reinterpret_cast<IDirect3DDeviceManager9 *>(hdl);
-
-            m_pmfxAllocatorParams = pd3dAllocParams;
         }
 
         /* In case of video memory we must provide MediaSDK with external allocator
@@ -590,7 +585,6 @@ mfxStatus CEncodingPipeline::CreateAllocator()
     }
 
     // initialize memory allocator
-    sts = m_pMFXAllocator->Init(m_pmfxAllocatorParams);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     return MFX_ERR_NONE;
@@ -614,7 +608,6 @@ void CEncodingPipeline::DeleteAllocator()
 {
     // delete allocator
     MSDK_SAFE_DELETE(m_pMFXAllocator);
-    MSDK_SAFE_DELETE(m_pmfxAllocatorParams);
 
 }
 
@@ -623,7 +616,6 @@ CEncodingPipeline::CEncodingPipeline()
     m_pmfxENC = NULL;
     m_pmfxVPP = NULL;
     m_pMFXAllocator = NULL;
-    m_pmfxAllocatorParams = NULL;
     m_memType = SYSTEM_MEMORY;
     m_bExternalAlloc = false;
     m_pEncSurfaces = NULL;

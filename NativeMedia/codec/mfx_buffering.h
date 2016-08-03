@@ -282,11 +282,9 @@ public:
 
 protected: // functions
     mfxStatus AllocBuffers(mfxU32 SurfaceNumber);
-    mfxStatus AllocVppBuffers(mfxU32 VppSurfaceNumber);
     void AllocOutputBuffer();
     void FreeBuffers();
     void ResetBuffers();
-    void ResetVppBuffers();
 
     /** \brief The function syncs arrays of free and used surfaces.
      *
@@ -294,7 +292,6 @@ protected: // functions
      * back to the free surfaces array.
      */
     void SyncFrameSurfaces();
-    void SyncVppFrameSurfaces();
 
     /** \brief Returns surface which corresponds to the given one in Media SDK format (mfxFrameSurface1).
      *
@@ -314,6 +311,7 @@ protected: // functions
         m_pFreeOutputSurfaces = surface;
         m_pFreeOutputSurfaces->next = head;
     }
+
     inline void AddFreeOutputSurface(msdkOutputSurface* surface) {
         WinRTCSDK::AutoLock lock(m_Mutex);
         AddFreeOutputSurfaceUnsafe(surface);
@@ -349,7 +347,7 @@ protected: // functions
         MSDK_SELF_CHECK(output_surface->surface);
         MSDK_SELF_CHECK(output_surface->syncp);
 
-        _InterlockedIncrement16((volatile short*)&(output_surface->surface->render_lock));
+        msdk_atomic_dec16(&(output_surface->surface->render_lock));
 
         output_surface->surface = NULL;
         output_surface->syncp = NULL;
@@ -361,16 +359,13 @@ protected: // variables
     mfxU32                  m_SurfacesNumber;
     mfxU32                  m_OutputSurfacesNumber;
     msdkFrameSurface*       m_pSurfaces;
-    msdkFrameSurface*       m_pVppSurfaces;
-    WinRTCSDK::Mutex               m_Mutex;
+    WinRTCSDK::Mutex        m_Mutex;
 
     // LIFO list of frame surfaces
     msdkFreeSurfacesPool    m_FreeSurfacesPool;
-    msdkFreeSurfacesPool    m_FreeVppSurfacesPool;
 
     // random access, predicted as FIFO
     msdkUsedSurfacesPool    m_UsedSurfacesPool;
-    msdkUsedSurfacesPool    m_UsedVppSurfacesPool;
 
     // LIFO list of output surfaces
     msdkOutputSurface*      m_pFreeOutputSurfaces;
