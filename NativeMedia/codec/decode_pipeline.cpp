@@ -11,7 +11,6 @@
 #include <ctime>
 #include <algorithm>
 #include "decode_pipeline.h"
-#include "sysmem_allocator.h"
 #include "sys_primitives.h"
 #include "d3d_allocator.h"
 
@@ -27,26 +26,15 @@ CDecodingPipeline::CDecodingPipeline()
     MSDK_ZERO_MEMORY(m_mfxVideoParams);
 
 	m_pFrameAllocator = NULL;
-	m_pSysMemAllocator = NULL;
 	m_pD3DAllocator = NULL; 
 
-	m_memType = SYSTEM_MEMORY;
-    m_bExternalAlloc = false;
-    m_bDecOutSysmem = false;
     MSDK_ZERO_MEMORY(m_mfxResponse);
-
-    m_pCurrentFreeSurface = NULL;
-    m_pCurrentFreeOutputSurface = NULL;
-    m_pCurrentOutputSurface = NULL;
 
     m_pDeliverOutputSemaphore = NULL;
     m_pDeliveredEvent = NULL;
     m_error = MFX_ERR_NONE;
     m_bStopDeliverLoop = false;
 
-    m_eWorkMode = MODE_PERFORMANCE;
-
-	m_bIsExtBuffers = false;
     m_bIsCompleteFrame = false;
     m_bPrintLatency = false;
     m_fourcc = 0;
@@ -82,31 +70,18 @@ mfxStatus CDecodingPipeline::Init(sInputParams *pParams, IDirect3DDeviceManager9
         m_bIsCompleteFrame = true;
         m_bPrintLatency = true;
         break;
-    case MFX_CODEC_JPEG:
-        m_FileReader.reset(new CJPEGFrameReader());
-        m_bIsCompleteFrame = true;
-        m_bPrintLatency = true;
-        break;
     default:
         return MFX_ERR_UNSUPPORTED; // latency mode is supported only for H.264 and JPEG codecs
 	}
 
-    if (pParams->fourcc)
-        m_fourcc = pParams->fourcc;
-
-    m_memType = pParams->memType;
 
     m_nMaxFps = pParams->nMaxFPS;
-    m_nFrames = pParams->nFrames ? pParams->nFrames : MFX_INFINITE;
+    m_nFrames =  MFX_INFINITE;
 
-    if (MFX_CODEC_CAPTURE != pParams->videoType)
-    {
-        sts = m_FileReader->Init(pParams->strSrcFile);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-    }
+    sts = m_FileReader->Init(pParams->strSrcFile);
+    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     mfxInitParam initPar;
-    mfxExtBuffer* extBufs[1];
     mfxVersion version;     // real API version with which library is initialized
 
     MSDK_ZERO_MEMORY(initPar);
@@ -168,18 +143,9 @@ mfxStatus CDecodingPipeline::Init(sInputParams *pParams, IDirect3DDeviceManager9
     sts = InitMfxParams(pParams);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
        
-	m_bDecOutSysmem = pParams->memType == SYSTEM_MEMORY;
-
-    m_eWorkMode = pParams->mode;
-    if (m_eWorkMode == MODE_FILE_DUMP) {
-        // prepare YUV file writer
-        sts = m_FileWriter.Init(pParams->strDstFile, 1);
-    } else if ((m_eWorkMode != MODE_PERFORMANCE) && (m_eWorkMode != MODE_RENDERING)) {
-        msdk_printf(MSDK_STRING("error: unsupported work mode\n"));
-        sts = MFX_ERR_UNSUPPORTED;
-    }
+    // prepare YUV file writer
+    sts = m_FileWriter.Init(pParams->strDstFile, 1);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
 
     sts = CreateAllocator();
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
@@ -210,15 +176,11 @@ void CDecodingPipeline::Close()
 
     DeleteFrames();
 
-    if (m_bIsExtBuffers)
-    {
-        DeleteExtBuffers();
-    }
-
     m_mfxSession.Close();
     m_FileWriter.Close();
-    if (m_FileReader.get())
+    if (m_FileReader.get()){
         m_FileReader->Close();
+	}
 
     // allocator if used as external for MediaSDK must be deleted after decoder
     DeleteAllocator();
@@ -231,7 +193,7 @@ mfxStatus CDecodingPipeline::InitMfxParams(sInputParams *pParams)
     MSDK_CHECK_POINTER(m_pmfxDEC, MFX_ERR_NULL_PTR);
     mfxStatus sts = MFX_ERR_NONE;
 
-    for (; MFX_CODEC_CAPTURE != pParams->videoType;)
+    while(true)
     {
         // trying to find PicStruct information in AVI headers
         if ( m_mfxVideoParams.mfx.CodecId == MFX_CODEC_JPEG )
@@ -281,13 +243,6 @@ mfxStatus CDecodingPipeline::InitMfxParams(sInputParams *pParams)
         m_mfxVideoParams.mfx.FrameInfo.AspectRatioW = 1;
         m_mfxVideoParams.mfx.FrameInfo.AspectRatioH = 1;
     }
-
-    // Videoparams for RGB4 JPEG decoder output
-    if ((pParams->fourcc == MFX_FOURCC_RGB4) && (pParams->videoType == MFX_CODEC_JPEG))
-    {
-        m_mfxVideoParams.mfx.FrameInfo.FourCC = MFX_FOURCC_RGB4;
-        m_mfxVideoParams.mfx.FrameInfo.ChromaFormat = MFX_CHROMAFORMAT_YUV444;
-    }
       
 	m_mfxVideoParams.IOPattern = (mfxU16)(pParams->bUseHWLib ? MFX_IOPATTERN_OUT_VIDEO_MEMORY : MFX_IOPATTERN_OUT_SYSTEM_MEMORY);
 
@@ -304,8 +259,6 @@ mfxStatus CDecodingPipeline::AllocFrames()
     mfxStatus sts = MFX_ERR_NONE;
     mfxFrameAllocRequest Request;
 
-    mfxU16 nSurfNum = 0; // number of surfaces for decoder
-
     MSDK_ZERO_MEMORY(Request);
 
 	sts = m_pmfxDEC->Query(&m_mfxVideoParams, &m_mfxVideoParams);
@@ -317,8 +270,8 @@ mfxStatus CDecodingPipeline::AllocFrames()
     if (MFX_WRN_PARTIAL_ACCELERATION == sts)
     {
         msdk_printf(MSDK_STRING("WARNING: partial acceleration\n"));
-        MSDK_IGNORE_MFX_STS(sts, MFX_WRN_PARTIAL_ACCELERATION);
-        m_bDecOutSysmem = true;
+        //MSDK_IGNORE_MFX_STS(sts, MFX_WRN_PARTIAL_ACCELERATION);
+		
     }
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
@@ -326,9 +279,7 @@ mfxStatus CDecodingPipeline::AllocFrames()
         (m_impl & MFX_IMPL_HARDWARE_ANY))
         return MFX_ERR_MEMORY_ALLOC;
 
-    Request.Type |= (m_bDecOutSysmem) ?
-        MFX_MEMTYPE_SYSTEM_MEMORY
-        : MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET;
+    Request.Type |= MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET;
 
 
     // alloc frames for decoder
@@ -336,22 +287,17 @@ mfxStatus CDecodingPipeline::AllocFrames()
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     // prepare mfxFrameSurface1 array for decoder
-    nSurfNum = m_mfxResponse.NumFrameActual;
+    m_IOSurfaceNum = m_mfxResponse.NumFrameActual;
+	m_IOSurfacePool = new IOFrameSurface[m_IOSurfaceNum];
 
-    sts = AllocBuffers(nSurfNum);
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-    for (int i = 0; i < nSurfNum; i++)
+    for (int i = 0; i < m_IOSurfaceNum; i++)
     {
         // initating each frame:
-        MSDK_MEMCPY_VAR(m_pSurfaces[i].frame.Info, &(Request.Info), sizeof(mfxFrameInfo));
-        if (m_bExternalAlloc) {
-            m_pSurfaces[i].frame.Data.MemId = m_mfxResponse.mids[i];
-        }
-        else {
-            sts = m_pFrameAllocator->Lock(m_pFrameAllocator->pthis, m_mfxResponse.mids[i], &(m_pSurfaces[i].frame.Data));
-            MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-        }
+        MSDK_MEMCPY_VAR(m_IOSurfacePool[i].frame.Info, &(Request.Info), sizeof(mfxFrameInfo));
+        m_IOSurfacePool[i].frame.Data.MemId = m_mfxResponse.mids[i];
+
+		// add to free queue
+		m_FreeQueue.push(&m_IOSurfacePool[i]);
     }
 
     return MFX_ERR_NONE;
@@ -361,40 +307,29 @@ mfxStatus CDecodingPipeline::CreateAllocator()
 {
     mfxStatus sts = MFX_ERR_NONE;
 
-    if (m_memType != SYSTEM_MEMORY || !m_bDecOutSysmem)
-    {
-		// set device handle
-		mfxHDL hdl = (mfxHDL)m_pD3DManager;
-		mfxHandleType hdl_t = MFX_HANDLE_D3D9_DEVICE_MANAGER;		
-		sts = m_mfxSession.SetHandle(hdl_t, hdl);
-		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+	// set device handle
+	mfxHDL hdl = (mfxHDL)m_pD3DManager;
+	mfxHandleType hdl_t = MFX_HANDLE_D3D9_DEVICE_MANAGER;		
+	sts = m_mfxSession.SetHandle(hdl_t, hdl);
+	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-		m_pD3DAllocator = new D3DFrameAllocator();
-		m_pD3DAllocator->Init(m_pD3DManager);
-		m_pFrameAllocator = m_pD3DAllocator;
-		/* In case of video memory we must provide MediaSDK with external allocator
-        thus we demonstrate "external allocator" usage model.
-        Call SetAllocator to pass allocator to mediasdk */
-        sts = m_mfxSession.SetFrameAllocator(m_pFrameAllocator);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-        m_bExternalAlloc = true;
-    }
-	else
-	{
-		m_pSysMemAllocator = new SysMemFrameAllocator();
-		m_pFrameAllocator = m_pSysMemAllocator;
-	}
+	m_pD3DAllocator = new D3DFrameAllocator();
+	m_pD3DAllocator->Init(m_pD3DManager);
+	m_pFrameAllocator = m_pD3DAllocator;
+	/* In case of video memory we must provide MediaSDK with external allocator
+    thus we demonstrate "external allocator" usage model.
+    Call SetAllocator to pass allocator to mediasdk */
+    sts = m_mfxSession.SetFrameAllocator(m_pFrameAllocator);
+    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     return MFX_ERR_NONE;
 }
 
 void CDecodingPipeline::DeleteFrames()
 {
-    FreeBuffers();
 
-    m_pCurrentFreeSurface = NULL;
-    MSDK_SAFE_FREE(m_pCurrentFreeOutputSurface);
+	// delete IO pool
+	delete m_IOSurfacePool;
 
     // delete frames
     if (m_pFrameAllocator)
@@ -410,35 +345,6 @@ void CDecodingPipeline::DeleteAllocator()
 	m_pFrameAllocator = NULL;
     // delete allocator
     MSDK_SAFE_DELETE(m_pD3DAllocator);
-    MSDK_SAFE_DELETE(m_pSysMemAllocator);
-}
-
-// function for allocating a specific external buffer
-template <typename Buffer>
-mfxStatus CDecodingPipeline::AllocateExtBuffer()
-{
-    std::auto_ptr<Buffer> pExtBuffer (new Buffer());
-    if (!pExtBuffer.get())
-        return MFX_ERR_MEMORY_ALLOC;
-
-    init_ext_buffer(*pExtBuffer);
-
-    m_ExtBuffers.push_back(reinterpret_cast<mfxExtBuffer*>(pExtBuffer.release()));
-
-    return MFX_ERR_NONE;
-}
-
-void CDecodingPipeline::AttachExtParam()
-{
-    m_mfxVideoParams.ExtParam = reinterpret_cast<mfxExtBuffer**>(&m_ExtBuffers[0]);
-    m_mfxVideoParams.NumExtParam = static_cast<mfxU16>(m_ExtBuffers.size());
-}
-
-void CDecodingPipeline::DeleteExtBuffers()
-{
-    for (std::vector<mfxExtBuffer *>::iterator it = m_ExtBuffers.begin(); it != m_ExtBuffers.end(); ++it)
-        delete *it;
-    m_ExtBuffers.clear();
 }
 
 mfxStatus CDecodingPipeline::ResetDecoder(sInputParams *pParams)
@@ -484,23 +390,15 @@ mfxStatus CDecodingPipeline::DeliverOutput(mfxFrameSurface1* frame)
         return MFX_ERR_NULL_PTR;
     }
 
-    if (m_bExternalAlloc) {
-        if (m_eWorkMode == MODE_FILE_DUMP) {
-            res = m_pFrameAllocator->Lock(m_pFrameAllocator->pthis, frame->Data.MemId, &(frame->Data));
-            if (MFX_ERR_NONE == res) {
-                res = m_FileWriter.WriteNextFrame(frame);
-                sts = m_pFrameAllocator->Unlock(m_pFrameAllocator->pthis, frame->Data.MemId, &(frame->Data));
-            }
-            if ((MFX_ERR_NONE == res) && (MFX_ERR_NONE != sts)) {
-                res = sts;
-            }
-        } else if (m_eWorkMode == MODE_RENDERING) {
-            //res = m_hwdev->RenderFrame(frame, m_pFrameAllocator);
-        }
-    }
-    else {
+    res = m_pFrameAllocator->Lock(m_pFrameAllocator->pthis, frame->Data.MemId, &(frame->Data));
+    if (MFX_ERR_NONE == res) {
         res = m_FileWriter.WriteNextFrame(frame);
+        sts = m_pFrameAllocator->Unlock(m_pFrameAllocator->pthis, frame->Data.MemId, &(frame->Data));
     }
+    if ((MFX_ERR_NONE == res) && (MFX_ERR_NONE != sts)) {
+        res = sts;
+    }
+    //res = m_hwdev->RenderFrame(frame, m_pFrameAllocator);
 
     return res;
 }
@@ -509,7 +407,8 @@ mfxStatus CDecodingPipeline::DeliverLoop(void)
 {
     mfxStatus res = MFX_ERR_NONE;
 
-    while (!m_bStopDeliverLoop) {
+    while (!m_bStopDeliverLoop) 
+	{
         m_pDeliverOutputSemaphore->Wait();
         if (m_bStopDeliverLoop) {
             continue;
@@ -517,15 +416,34 @@ mfxStatus CDecodingPipeline::DeliverLoop(void)
         if (MFX_ERR_NONE != m_error) {
             continue;
         }
-        msdkOutputSurface* pCurrentDeliveredSurface = m_DeliveredSurfacesPool.GetSurface();
-        if (!pCurrentDeliveredSurface) {
+
+        IOFrameSurface *  pSurf = NULL;
+		{
+			WinRTCSDK::AutoLock l (m_lock);
+			if ( m_OutQueue.empty() == false)
+			{
+				pSurf = m_OutQueue.front();
+				m_OutQueue.pop();
+			}
+		}
+
+		if (!pSurf) {
             m_error = MFX_ERR_NULL_PTR;
             continue;
         }
-        mfxFrameSurface1* frame = &(pCurrentDeliveredSurface->surface->frame);
+        mfxFrameSurface1* frame = &(pSurf->frame);
 
         m_error = DeliverOutput(frame);
-        ReturnSurfaceToBuffers(pCurrentDeliveredSurface);
+		{
+			WinRTCSDK::AutoLock l (m_lock);
+			if ( m_OutQueue.empty() == false)
+			{
+				pSurf = m_OutQueue.front();
+				m_OutQueue.pop();
+			}
+		}
+
+		ReturnSurfaceToBuffers(pCurrentDeliveredSurface);
 
         pCurrentDeliveredSurface = NULL;
         ++m_output_count;
@@ -567,65 +485,6 @@ void CDecodingPipeline::PrintPerFrameStat(bool force)
     }
 }
 
-mfxStatus CDecodingPipeline::SyncOutputSurface(mfxU32 wait)
-{
-    if (!m_pCurrentOutputSurface) {
-        m_pCurrentOutputSurface = m_OutputSurfacesPool.GetSurface();
-    }
-    if (!m_pCurrentOutputSurface) {
-        return MFX_ERR_MORE_DATA;
-    }
-
-    mfxStatus sts = m_mfxSession.SyncOperation(m_pCurrentOutputSurface->syncp, wait);
-
-    if (MFX_WRN_IN_EXECUTION == sts) {
-        return sts;
-    }
-    if (MFX_ERR_NONE == sts) {
-        // we got completely decoded frame - pushing it to the delivering thread...
-        ++m_synced_count;
-        if (m_bPrintLatency) {
-            m_vLatency.push_back(m_timer_overall.Sync() - m_pCurrentOutputSurface->surface->submit);
-        }
-        else {
-            PrintPerFrameStat();
-        }
-
-        if (m_eWorkMode == MODE_PERFORMANCE) {
-            m_output_count = m_synced_count;
-            ReturnSurfaceToBuffers(m_pCurrentOutputSurface);
-        } else if (m_eWorkMode == MODE_FILE_DUMP) {
-            m_output_count = m_synced_count;
-            sts = DeliverOutput(&(m_pCurrentOutputSurface->surface->frame));
-            if (MFX_ERR_NONE != sts) {
-                sts = MFX_ERR_UNKNOWN;
-            }
-            ReturnSurfaceToBuffers(m_pCurrentOutputSurface);
-        } else if (m_eWorkMode == MODE_RENDERING) {
-            if(m_nMaxFps)
-            {
-                //calculation of a time to sleep in order not to exceed a given fps
-                mfxF64 currentTime = (m_output_count) ? CTimer::ConvertToSeconds(m_tick_overall) : 0.0;
-                int time_to_sleep = (int)(1000 * ((double)m_output_count / m_nMaxFps - currentTime));
-                if (time_to_sleep > 0)
-                {
-                    MSDK_SLEEP(time_to_sleep);
-                }
-            }
-            m_DeliveredSurfacesPool.AddSurface(m_pCurrentOutputSurface);
-            m_pDeliveredEvent->Reset();
-            m_pDeliverOutputSemaphore->Post();
-        }
-        m_pCurrentOutputSurface = NULL;
-    }
-
-    if (MFX_ERR_NONE != sts) {
-        sts = MFX_ERR_UNKNOWN;
-    }
-
-    return sts;
-}
-
 mfxStatus CDecodingPipeline::RunDecoding()
 {
     mfxFrameSurface1*   pOutSurface = NULL;
@@ -636,23 +495,17 @@ mfxStatus CDecodingPipeline::RunDecoding()
     time_t start_time = time(0);
     MSDKThread * pDeliverThread = NULL;
 
-    if (m_eWorkMode == MODE_RENDERING) {
-        m_pDeliverOutputSemaphore = new Win32Semaphore(sts);
-        m_pDeliveredEvent = new Win32Event(TRUE);
-        pDeliverThread = new MSDKThread(sts, DeliverThreadFunc, this);
-        if (!pDeliverThread || !m_pDeliverOutputSemaphore || !m_pDeliveredEvent) {
-            MSDK_SAFE_DELETE(pDeliverThread);
-            MSDK_SAFE_DELETE(m_pDeliverOutputSemaphore);
-            MSDK_SAFE_DELETE(m_pDeliveredEvent);
-            return MFX_ERR_MEMORY_ALLOC;
-        }
-    }
 
-    if (MFX_CODEC_CAPTURE == this->m_mfxVideoParams.mfx.CodecId)
-    {
-        pBitstream = 0;
+    m_pDeliverOutputSemaphore = new Win32Semaphore(sts);
+    m_pDeliveredEvent = new Win32Event(TRUE);
+    pDeliverThread = new MSDKThread(sts, DeliverThreadFunc, this);
+    if (!pDeliverThread || !m_pDeliverOutputSemaphore || !m_pDeliveredEvent) {
+        MSDK_SAFE_DELETE(pDeliverThread);
+        MSDK_SAFE_DELETE(m_pDeliverOutputSemaphore);
+        MSDK_SAFE_DELETE(m_pDeliveredEvent);
+        return MFX_ERR_MEMORY_ALLOC;
     }
-
+	IOFrameSurface * pFreeSurf;
     while (((sts == MFX_ERR_NONE) || (MFX_ERR_MORE_DATA == sts) || (MFX_ERR_MORE_SURFACE == sts)) && (m_nFrames > m_output_count))
 	{
         if (MFX_ERR_NONE != m_error) {
@@ -673,18 +526,17 @@ mfxStatus CDecodingPipeline::RunDecoding()
             }
         }
 
-        if ((MFX_ERR_NONE == sts) || (MFX_ERR_MORE_DATA == sts) || (MFX_ERR_MORE_SURFACE == sts)) {
-            SyncFrameSurfaces();
+		pFreeSurf = NULL;
+        if ((MFX_ERR_NONE == sts) || (MFX_ERR_MORE_DATA == sts) || (MFX_ERR_MORE_SURFACE == sts))
+		{
+			recycleUsedSurface();
 
-			if (!m_pCurrentFreeSurface) {
-                m_pCurrentFreeSurface = m_FreeSurfacesPool.GetSurface();
-            }
+			pFreeSurf = dequeFreeSurface();
 
-            if (!m_pCurrentFreeSurface ||
-				(m_OutputSurfacesPool.GetSurfaceCount() == m_mfxVideoParams.AsyncDepth))
+            if (pFreeSurf)
 			{
                 // we stuck with no free surface available, now we will sync...
-                sts = SyncOutputSurface(MSDK_DEC_WAIT_INTERVAL);
+                sts = syncOutSurface(30 * 1000);
                 if (MFX_ERR_MORE_DATA == sts) {
                     if ((m_eWorkMode == MODE_PERFORMANCE) || (m_eWorkMode == MODE_FILE_DUMP)) {
                         sts = MFX_ERR_NOT_FOUND;
@@ -830,12 +682,10 @@ mfxStatus CDecodingPipeline::RunDecoding()
             CTimer::ConvertToSeconds(*std::min_element(m_vLatency.begin(), m_vLatency.end()))*1000);
     }
 
-    if (m_eWorkMode == MODE_RENDERING) {
-        m_bStopDeliverLoop = true;
-        m_pDeliverOutputSemaphore->Post();
-        if (pDeliverThread)
-            pDeliverThread->Wait();
-    }
+    m_bStopDeliverLoop = true;
+    m_pDeliverOutputSemaphore->Post();
+    if (pDeliverThread)
+        pDeliverThread->Wait();
 
     MSDK_SAFE_DELETE(m_pDeliverOutputSemaphore);
     MSDK_SAFE_DELETE(m_pDeliveredEvent);

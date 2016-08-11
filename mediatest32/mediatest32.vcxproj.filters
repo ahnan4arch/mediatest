@@ -74,9 +74,6 @@
     <ClCompile Include="..\NativeMedia\codec\avc_spl.cpp">
       <Filter>codec</Filter>
     </ClCompile>
-    <ClCompile Include="..\NativeMedia\codec\mfx_buffering.cpp">
-      <Filter>codec</Filter>
-    </ClCompile>
     <ClCompile Include="..\NativeMedia\codec\codec_utils.cpp">
       <Filter>codec</Filter>
     </ClCompile>
@@ -185,9 +182,6 @@
       <Filter>codec</Filter>
     </ClInclude>
     <ClInclude Include="..\NativeMedia\codec\abstract_splitter.h">
-      <Filter>codec</Filter>
-    </ClInclude>
-    <ClInclude Include="..\NativeMedia\codec\mfx_buffering.h">
       <Filter>codec</Filter>
     </ClInclude>
     <ClInclude Include="..\NativeMedia\codec\time_statistics.h">

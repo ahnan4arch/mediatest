@@ -1,21 +1,20 @@
 #pragma once
 
-
 #pragma warning(disable : 4201)
 #include <d3d9.h>
 #include <dxva2api.h>
 
+#include <queue>
 #include <vector>
 #include <memory>
 
+#include "autolock.h"
 #include "win32event.h"
 #include "codec_defs.h"
-#include "mfx_buffering.h"
 
 #include "codec_utils.h"
 #include "base_allocator.h"
 #include "d3d_allocator.h"
-#include "sysmem_allocator.h"
 
 #include "mfxmvc.h"
 #include "mfxjpeg.h"
@@ -26,38 +25,24 @@
 
 using namespace WinRTCSDK;
 
-enum MemType {
-    SYSTEM_MEMORY = 0x00,
-    D3D9_MEMORY   = 0x01,
-    D3D11_MEMORY  = 0x02,
-};
-
-enum eWorkMode {
-  MODE_PERFORMANCE,
-  MODE_RENDERING,
-  MODE_FILE_DUMP
+struct IOFrameSurface
+{
+	IOFrameSurface() 
+	{
+		::memset(this, 0, sizeof (IOFrameSurface));
+	}
+    mfxFrameSurface1  frame;
+    msdk_tick submit;  // the time when submitting to codec
+	mfxSyncPoint syncPoint;
 };
 
 struct sInputParams
 {
     mfxU32 videoType;
-    eWorkMode mode;
-    MemType memType;
     bool    bUseHWLib; // true if application wants to use HW mfx library
     mfxU32  nMaxFPS; //rendering limited by certain fps
-    mfxU32  nRotation; // rotation for Motion JPEG Codec
     mfxU16  nAsyncDepth; // asyncronous queue
     mfxU16  gpuCopy; // GPU Copy mode (three-state option)
-
-    mfxU16  scrWidth;
-    mfxU16  scrHeight;
-
-    mfxU16  Width;
-    mfxU16  Height;
-
-    mfxU32  fourcc;
-    mfxU32  nFrames;
-
     msdk_char     strSrcFile[MSDK_MAX_FILENAME_LEN];
     msdk_char     strDstFile[MSDK_MAX_FILENAME_LEN];
 
@@ -65,10 +50,6 @@ struct sInputParams
     {
         MSDK_ZERO_MEMORY(*this);
     }
-};
-
-template<>struct mfx_ext_buffer_id<mfxExtMVCSeqDesc>{
-    enum {id = MFX_EXTBUFF_MVC_SEQ_DESC};
 };
 
 struct CPipelineStatistics
@@ -101,7 +82,6 @@ private:
 };
 
 class CDecodingPipeline:
-    public CBuffering,
     public CPipelineStatistics
 {
 public:
@@ -113,38 +93,138 @@ public:
     virtual void Close();
     virtual mfxStatus ResetDecoder(sInputParams *pParams);
 
-    void SetExtBuffersFlag()       { m_bIsExtBuffers = true; }
     virtual void PrintInfo();
 
 protected: // functions
     virtual mfxStatus InitMfxParams(sInputParams *pParams);
-
-    // function for allocating a specific external buffer
-    template <typename Buffer>
-    mfxStatus AllocateExtBuffer();
-    virtual void DeleteExtBuffers();
-    virtual void AttachExtParam();
-
 
     virtual mfxStatus CreateAllocator();
     virtual mfxStatus AllocFrames();
     virtual void DeleteFrames();
     virtual void DeleteAllocator();
 
-    /** \brief Performs SyncOperation on the current output surface with the specified timeout.
-     *
-     * @return MFX_ERR_NONE Output surface was successfully synced and delivered.
-     * @return MFX_ERR_MORE_DATA Array of output surfaces is empty, need to feed decoder.
-     * @return MFX_WRN_IN_EXECUTION Specified timeout have elapsed.
-     * @return MFX_ERR_UNKNOWN An error has occurred.
-     */
-    virtual mfxStatus SyncOutputSurface(mfxU32 wait);
     virtual mfxStatus DeliverOutput(mfxFrameSurface1* frame);
     virtual void PrintPerFrameStat(bool force = false);
-
     virtual mfxStatus DeliverLoop(void);
-
     static DWORD MFX_STDCALL DeliverThreadFunc(void* ctx);
+
+	// buffering operation
+	IOFrameSurface * dequeOutSurface()
+	{
+		WinRTCSDK::AutoLock l (m_lock);
+        IOFrameSurface *  pSurf = NULL;
+		if ( m_OutQueue.empty() == false)
+		{
+			pSurf = m_OutQueue.front();
+			m_OutQueue.pop();
+		}
+		return pSurf;
+	}
+	void enqueueOutSurface()
+	{
+		WinRTCSDK::AutoLock l (m_lock);
+        IOFrameSurface *  pSurf = NULL;
+		if ( m_OutQueue.empty() == false)
+		{
+			pSurf = m_OutQueue.front();
+			m_OutQueue.pop();
+		}
+		return pSurf;
+	}
+
+	void returnOutSurface(IOFrameSurface * pSurf)
+	{
+		WinRTCSDK::AutoLock l (m_lock);
+		if ( pSurf->frame.Data.Locked ==0 ){// locked by decoder
+			m_FreeQueue.push(pSurf);
+		}else{
+			m_UsedQueue.push_back(pSurf);
+		}
+	}
+
+	IOFrameSurface * dequeFreeSurface()
+	{
+		WinRTCSDK::AutoLock l (m_lock);
+        IOFrameSurface *  pSurf = NULL;
+		if ( m_FreeQueue.empty() == false)
+		{
+			pSurf = m_FreeQueue.front();
+			m_FreeQueue.pop();
+		}
+		return pSurf;
+	}
+
+	void recycleUsedSurface()
+	{
+		WinRTCSDK::AutoLock l (m_lock);
+		std::vector<IOFrameSurface*>::iterator i = m_UsedQueue.begin();
+		while (i != m_UsedQueue.end()){
+			if ( (*i)->frame.Data.Locked ==0 ){ // freed by decoder
+				i = m_UsedQueue.erase(i);
+				continue;
+			}else{
+				i++;
+			}
+		}
+	}
+
+	mfxStatus  syncOutSurface ( int waitTime)
+	{
+		IOFrameSurface* pSurf = NULL;
+		if ( m_SyncQueue.empty()) return MFX_ERR_MORE_DATA;
+
+		pSurf = m_SyncQueue.front();
+
+		mfxStatus sts = m_mfxSession.SyncOperation(pSurf->syncPoint, waitTime);
+
+		if (MFX_WRN_IN_EXECUTION == sts) {
+			return sts;
+		}
+		if (MFX_ERR_NONE == sts) {
+			// we got completely decoded frame - pushing it to the delivering thread...
+			++m_synced_count;
+			if (m_bPrintLatency) {
+				m_vLatency.push_back(m_timer_overall.Sync() - pSurf->submit);
+			}
+			else {
+				PrintPerFrameStat();
+			}
+
+			if (m_eWorkMode == MODE_PERFORMANCE) {
+				m_output_count = m_synced_count;
+				ReturnSurfaceToBuffers(m_pCurrentOutputSurface);
+			} else if (m_eWorkMode == MODE_FILE_DUMP) {
+				m_output_count = m_synced_count;
+				sts = DeliverOutput(&(m_pCurrentOutputSurface->surface->frame));
+				if (MFX_ERR_NONE != sts) {
+					sts = MFX_ERR_UNKNOWN;
+				}
+				ReturnSurfaceToBuffers(m_pCurrentOutputSurface);
+			} else if (m_eWorkMode == MODE_RENDERING) {
+				if(m_nMaxFps)
+				{
+					//calculation of a time to sleep in order not to exceed a given fps
+					mfxF64 currentTime = (m_output_count) ? CTimer::ConvertToSeconds(m_tick_overall) : 0.0;
+					int time_to_sleep = (int)(1000 * ((double)m_output_count / m_nMaxFps - currentTime));
+					if (time_to_sleep > 0)
+					{
+						MSDK_SLEEP(time_to_sleep);
+					}
+				}
+				m_DeliveredSurfacesPool.AddSurface(m_pCurrentOutputSurface);
+				m_pDeliveredEvent->Reset();
+				m_pDeliverOutputSemaphore->Post();
+			}
+			m_pCurrentOutputSurface = NULL;
+		}
+
+		if (MFX_ERR_NONE != sts) {
+			sts = MFX_ERR_UNKNOWN;
+		}
+
+		return sts;
+	}
+	
 
 protected: // variables
     CSmplYUVWriter          m_FileWriter;
@@ -156,29 +236,24 @@ protected: // variables
     MFXVideoDECODE*         m_pmfxDEC;
     mfxVideoParam           m_mfxVideoParams;
 
-    std::vector<mfxExtBuffer *> m_ExtBuffers;
-
     BaseFrameAllocator*     m_pFrameAllocator;
-	SysMemFrameAllocator *  m_pSysMemAllocator;
 	D3DFrameAllocator*      m_pD3DAllocator;
 
-	MemType                 m_memType;      // memory type of surfaces to use
-    bool                    m_bExternalAlloc; // use memory allocator as external for Media SDK
-    bool                    m_bDecOutSysmem; // use system memory between Decoder and VPP, if false - video memory
     mfxFrameAllocResponse   m_mfxResponse; // memory allocation response for decoder
 
-    msdkFrameSurface*       m_pCurrentFreeSurface; // surface detached from free surfaces array
-    msdkOutputSurface*      m_pCurrentFreeOutputSurface; // surface detached from free output surfaces array
-    msdkOutputSurface*      m_pCurrentOutputSurface; // surface detached from output surfaces array
+	std::queue<IOFrameSurface*> m_OutQueue;
+	std::queue<IOFrameSurface*> m_FreeQueue;
+	std::queue<IOFrameSurface*> m_SyncQueue;
+	std::vector<IOFrameSurface*> m_UsedQueue; // locked by decoder
+
+    IOFrameSurface*         m_IOSurfacePool; // surface detached from free surfaces array
+	mfxU32                  m_IOSurfaceNum;
 
 	Win32Semaphore*         m_pDeliverOutputSemaphore; // to access to DeliverOutput method
 	Win32Event*             m_pDeliveredEvent; // to signal when output surfaces will be processed
     mfxStatus               m_error; // error returned by DeliverOutput method
     bool                    m_bStopDeliverLoop;
 
-    eWorkMode               m_eWorkMode; // work mode for the pipeline
-
-	bool                    m_bIsExtBuffers; // indicates if external buffers were allocated
     bool                    m_bIsCompleteFrame;
     mfxU32                  m_fourcc; // color format of vpp out, i420 by default
     bool                    m_bPrintLatency;
@@ -190,7 +265,7 @@ protected: // variables
     std::vector<msdk_tick>  m_vLatency;
 
 	IDirect3DDeviceManager9* m_pD3DManager;
-
+	WinRTCSDK::Mutex         m_lock;
 private:
     CDecodingPipeline(const CDecodingPipeline&);
     void operator=(const CDecodingPipeline&);

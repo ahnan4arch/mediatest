@@ -93,7 +93,6 @@
     <ClCompile Include="..\NativeMedia\codec\base_allocator.cpp" />
     <ClCompile Include="..\NativeMedia\codec\d3d_allocator.cpp" />
     <ClCompile Include="..\NativeMedia\codec\encode.cpp" />
-    <ClCompile Include="..\NativeMedia\codec\mfx_buffering.cpp" />
     <ClCompile Include="..\NativeMedia\codec\decode_pipeline.cpp" />
     <ClCompile Include="..\NativeMedia\codec\encode_pipeline.cpp" />
     <ClCompile Include="..\NativeMedia\codec\decode.cpp" />
@@ -127,7 +126,6 @@
     <ClInclude Include="..\NativeMedia\codec\avc_structures.h" />
     <ClInclude Include="..\NativeMedia\codec\base_allocator.h" />
     <ClInclude Include="..\NativeMedia\codec\d3d_allocator.h" />
-    <ClInclude Include="..\NativeMedia\codec\mfx_buffering.h" />
     <ClInclude Include="..\NativeMedia\codec\decode_pipeline.h" />
     <ClInclude Include="..\NativeMedia\codec\encode_pipeline.h" />
     <ClInclude Include="..\NativeMedia\codec\codec_defs.h" />
