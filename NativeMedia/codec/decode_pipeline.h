@@ -120,16 +120,10 @@ protected: // functions
 		}
 		return pSurf;
 	}
-	void enqueueOutSurface()
+	void enqueueOutSurface(IOFrameSurface * pSurf)
 	{
 		WinRTCSDK::AutoLock l (m_lock);
-        IOFrameSurface *  pSurf = NULL;
-		if ( m_OutQueue.empty() == false)
-		{
-			pSurf = m_OutQueue.front();
-			m_OutQueue.pop();
-		}
-		return pSurf;
+		m_OutQueue.push(pSurf);
 	}
 
 	void returnOutSurface(IOFrameSurface * pSurf)
@@ -180,7 +174,9 @@ protected: // functions
 		if (MFX_WRN_IN_EXECUTION == sts) {
 			return sts;
 		}
-		if (MFX_ERR_NONE == sts) {
+
+		if (MFX_ERR_NONE == sts)
+		{
 			// we got completely decoded frame - pushing it to the delivering thread...
 			++m_synced_count;
 			if (m_bPrintLatency) {
@@ -190,32 +186,22 @@ protected: // functions
 				PrintPerFrameStat();
 			}
 
-			if (m_eWorkMode == MODE_PERFORMANCE) {
-				m_output_count = m_synced_count;
-				ReturnSurfaceToBuffers(m_pCurrentOutputSurface);
-			} else if (m_eWorkMode == MODE_FILE_DUMP) {
-				m_output_count = m_synced_count;
-				sts = DeliverOutput(&(m_pCurrentOutputSurface->surface->frame));
-				if (MFX_ERR_NONE != sts) {
-					sts = MFX_ERR_UNKNOWN;
-				}
-				ReturnSurfaceToBuffers(m_pCurrentOutputSurface);
-			} else if (m_eWorkMode == MODE_RENDERING) {
-				if(m_nMaxFps)
+			if(m_nMaxFps)
+			{
+				//calculation of a time to sleep in order not to exceed a given fps
+				mfxF64 currentTime = (m_output_count) ? CTimer::ConvertToSeconds(m_tick_overall) : 0.0;
+				int time_to_sleep = (int)(1000 * ((double)m_output_count / m_nMaxFps - currentTime));
+				if (time_to_sleep > 0)
 				{
-					//calculation of a time to sleep in order not to exceed a given fps
-					mfxF64 currentTime = (m_output_count) ? CTimer::ConvertToSeconds(m_tick_overall) : 0.0;
-					int time_to_sleep = (int)(1000 * ((double)m_output_count / m_nMaxFps - currentTime));
-					if (time_to_sleep > 0)
-					{
-						MSDK_SLEEP(time_to_sleep);
-					}
+					MSDK_SLEEP(time_to_sleep);
 				}
-				m_DeliveredSurfacesPool.AddSurface(m_pCurrentOutputSurface);
-				m_pDeliveredEvent->Reset();
-				m_pDeliverOutputSemaphore->Post();
 			}
-			m_pCurrentOutputSurface = NULL;
+
+			m_SyncQueue.pop();
+			enqueueOutSurface(pSurf);
+
+			m_pDeliveredEvent->Reset();
+			m_pDeliverOutputSemaphore->Post();
 		}
 
 		if (MFX_ERR_NONE != sts) {

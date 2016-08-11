@@ -417,36 +417,20 @@ mfxStatus CDecodingPipeline::DeliverLoop(void)
             continue;
         }
 
-        IOFrameSurface *  pSurf = NULL;
-		{
-			WinRTCSDK::AutoLock l (m_lock);
-			if ( m_OutQueue.empty() == false)
-			{
-				pSurf = m_OutQueue.front();
-				m_OutQueue.pop();
-			}
-		}
+		IOFrameSurface *  pSurf = dequeOutSurface();
 
 		if (!pSurf) {
             m_error = MFX_ERR_NULL_PTR;
             continue;
         }
+
         mfxFrameSurface1* frame = &(pSurf->frame);
 
         m_error = DeliverOutput(frame);
-		{
-			WinRTCSDK::AutoLock l (m_lock);
-			if ( m_OutQueue.empty() == false)
-			{
-				pSurf = m_OutQueue.front();
-				m_OutQueue.pop();
-			}
-		}
 
-		ReturnSurfaceToBuffers(pCurrentDeliveredSurface);
+		returnOutSurface(pSurf);
 
-        pCurrentDeliveredSurface = NULL;
-        ++m_output_count;
+		++m_output_count;
 		m_pDeliveredEvent->SetEvent();
     }
     return res;
@@ -462,11 +446,12 @@ DWORD MFX_STDCALL CDecodingPipeline::DeliverThreadFunc(void* ctx)
     return 0;
 }
 
-#define MY_COUNT 1 // TODO: this will be cmd option
-#define MY_THRESHOLD 10000.0
 void CDecodingPipeline::PrintPerFrameStat(bool force)
 {
-    if ((!(m_output_count % MY_COUNT) && (m_eWorkMode != MODE_PERFORMANCE)) || force) {
+	const int MY_COUNT =1 ;// TODO: this will be cmd option
+	const double MY_THRESHOLD =10000.0;
+    if ((!(m_output_count % MY_COUNT) ) || force) 
+	{
         double fps, fps_fread, fps_fwrite;
 
         m_timer_overall.Sync();
@@ -505,6 +490,7 @@ mfxStatus CDecodingPipeline::RunDecoding()
         MSDK_SAFE_DELETE(m_pDeliveredEvent);
         return MFX_ERR_MEMORY_ALLOC;
     }
+
 	IOFrameSurface * pFreeSurf;
     while (((sts == MFX_ERR_NONE) || (MFX_ERR_MORE_DATA == sts) || (MFX_ERR_MORE_SURFACE == sts)) && (m_nFrames > m_output_count))
 	{
@@ -533,19 +519,17 @@ mfxStatus CDecodingPipeline::RunDecoding()
 
 			pFreeSurf = dequeFreeSurface();
 
-            if (pFreeSurf)
+            if (!pFreeSurf)
 			{
                 // we stuck with no free surface available, now we will sync...
                 sts = syncOutSurface(30 * 1000);
-                if (MFX_ERR_MORE_DATA == sts) {
-                    if ((m_eWorkMode == MODE_PERFORMANCE) || (m_eWorkMode == MODE_FILE_DUMP)) {
+                
+				if (MFX_ERR_MORE_DATA == sts) 
+				{
+                    if (m_synced_count != m_output_count) {
+						sts = m_pDeliveredEvent->Wait(MSDK_DEC_WAIT_INTERVAL)?MFX_ERR_NONE:MFX_ERR_NOT_FOUND;
+                    } else {
                         sts = MFX_ERR_NOT_FOUND;
-                    } else if (m_eWorkMode == MODE_RENDERING) {
-                        if (m_synced_count != m_output_count) {
-							sts = m_pDeliveredEvent->Wait(MSDK_DEC_WAIT_INTERVAL)?MFX_ERR_NONE:MFX_ERR_NOT_FOUND;
-                        } else {
-                            sts = MFX_ERR_NOT_FOUND;
-                        }
                     }
                     if (MFX_ERR_NOT_FOUND == sts) {
                         msdk_printf(MSDK_STRING("fatal: failed to find output surface, that's a bug!\n"));
