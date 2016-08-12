@@ -25,9 +25,6 @@ CDecodingPipeline::CDecodingPipeline()
 
     MSDK_ZERO_MEMORY(m_mfxVideoParams);
 
-	m_pFrameAllocator = NULL;
-	m_pD3DAllocator = NULL; 
-
     MSDK_ZERO_MEMORY(m_mfxResponse);
 
     m_pDeliverOutputSemaphore = NULL;
@@ -35,11 +32,8 @@ CDecodingPipeline::CDecodingPipeline()
     m_error = MFX_ERR_NONE;
     m_bStopDeliverLoop = false;
 
-    m_bIsCompleteFrame = false;
     m_bPrintLatency = false;
-    m_fourcc = 0;
 
-    m_nTimeout = 0;
     m_nMaxFps = 0;
 
 
@@ -52,12 +46,12 @@ CDecodingPipeline::~CDecodingPipeline()
     Close();
 }
 
-mfxStatus CDecodingPipeline::Init(sInputParams *pParams, IDirect3DDeviceManager9* pD3DMan)
+mfxStatus CDecodingPipeline::Init(sInputParams *pParams, MP::IDXVAVideoRender* pRender)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
 
-	// set the d3d manager
-	m_pD3DManager = pD3DMan;
+	// va interface
+	m_pRender = pRender;
 
     mfxStatus sts = MFX_ERR_NONE;
 
@@ -67,7 +61,6 @@ mfxStatus CDecodingPipeline::Init(sInputParams *pParams, IDirect3DDeviceManager9
     case MFX_CODEC_HEVC:
     case MFX_CODEC_AVC:
         m_FileReader.reset(new CH264FrameReader());
-        m_bIsCompleteFrame = true;
         m_bPrintLatency = true;
         break;
     default:
@@ -90,7 +83,7 @@ mfxStatus CDecodingPipeline::Init(sInputParams *pParams, IDirect3DDeviceManager9
     initPar.Version.Major = 1;
     initPar.Version.Minor = 0;
 
-    initPar.GPUCopy = pParams->gpuCopy;
+    initPar.GPUCopy = MFX_GPUCOPY_DEFAULT;
 
     // Init session
     if (pParams->bUseHWLib) {
@@ -116,12 +109,6 @@ mfxStatus CDecodingPipeline::Init(sInputParams *pParams, IDirect3DDeviceManager9
     sts = m_mfxSession.QueryIMPL(&m_impl); // get actual library implementation
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-    if ((pParams->videoType == MFX_CODEC_JPEG) && !CheckVersion(&version, MSDK_FEATURE_JPEG_DECODE)) {
-        msdk_printf(MSDK_STRING("error: Jpeg is not supported in the %d.%d API version\n"),
-            version.Major, version.Minor);
-        return MFX_ERR_UNSUPPORTED;
-    }
-
     // create decoder
     m_pmfxDEC = new MFXVideoDECODE(m_mfxSession);
     MSDK_CHECK_POINTER(m_pmfxDEC, MFX_ERR_MEMORY_ALLOC);
@@ -136,9 +123,6 @@ mfxStatus CDecodingPipeline::Init(sInputParams *pParams, IDirect3DDeviceManager9
         MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
     }
 
-    if (CheckVersion(&version, MSDK_FEATURE_PLUGIN_API)) {
-	}
-
     // Populate parameters. Involves DecodeHeader call
     sts = InitMfxParams(pParams);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
@@ -147,7 +131,14 @@ mfxStatus CDecodingPipeline::Init(sInputParams *pParams, IDirect3DDeviceManager9
     sts = m_FileWriter.Init(pParams->strDstFile, 1);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-    sts = CreateAllocator();
+	// set device handle
+	mfxHDL hdl = (mfxHDL)m_pRender->getHandle();
+	mfxHandleType hdl_t = MFX_HANDLE_D3D9_DEVICE_MANAGER;
+	sts = m_mfxSession.SetHandle(hdl_t, hdl);
+	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+	// set frame allocator
+	mfxFrameAllocator* pAlloc = (mfxFrameAllocator*) m_pRender->getFrameAllocator();
+	sts = m_mfxSession.SetFrameAllocator(pAlloc);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     // in case of HW accelerated decode frames must be allocated prior to decoder initialization
@@ -182,9 +173,6 @@ void CDecodingPipeline::Close()
         m_FileReader->Close();
 	}
 
-    // allocator if used as external for MediaSDK must be deleted after decoder
-    DeleteAllocator();
-
     return;
 }
 
@@ -195,10 +183,6 @@ mfxStatus CDecodingPipeline::InitMfxParams(sInputParams *pParams)
 
     while(true)
     {
-        // trying to find PicStruct information in AVI headers
-        if ( m_mfxVideoParams.mfx.CodecId == MFX_CODEC_JPEG )
-            MJPEG_AVI_ParsePicStruct(&m_mfxBS);
-
         // parse bit stream and fill mfx params
         sts = m_pmfxDEC->DecodeHeader(&m_mfxBS, &m_mfxVideoParams);
 
@@ -281,9 +265,9 @@ mfxStatus CDecodingPipeline::AllocFrames()
 
     Request.Type |= MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET;
 
-
     // alloc frames for decoder
-    sts = m_pFrameAllocator->Alloc(m_pFrameAllocator->pthis, &Request, &m_mfxResponse);
+	mfxFrameAllocator* pAlloc = (mfxFrameAllocator*) m_pRender->getFrameAllocator();
+    sts = pAlloc->Alloc(pAlloc->pthis, &Request, &m_mfxResponse);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     // prepare mfxFrameSurface1 array for decoder
@@ -298,29 +282,10 @@ mfxStatus CDecodingPipeline::AllocFrames()
 
 		// add to free queue
 		m_FreeQueue.push(&m_IOSurfacePool[i]);
+
+		// setup mapping
+		m_SurfaceMap[&m_IOSurfacePool[i].frame]  = &m_IOSurfacePool[i];
     }
-
-    return MFX_ERR_NONE;
-}
-
-mfxStatus CDecodingPipeline::CreateAllocator()
-{
-    mfxStatus sts = MFX_ERR_NONE;
-
-	// set device handle
-	mfxHDL hdl = (mfxHDL)m_pD3DManager;
-	mfxHandleType hdl_t = MFX_HANDLE_D3D9_DEVICE_MANAGER;		
-	sts = m_mfxSession.SetHandle(hdl_t, hdl);
-	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-	m_pD3DAllocator = new D3DFrameAllocator();
-	m_pD3DAllocator->Init(m_pD3DManager);
-	m_pFrameAllocator = m_pD3DAllocator;
-	/* In case of video memory we must provide MediaSDK with external allocator
-    thus we demonstrate "external allocator" usage model.
-    Call SetAllocator to pass allocator to mediasdk */
-    sts = m_mfxSession.SetFrameAllocator(m_pFrameAllocator);
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     return MFX_ERR_NONE;
 }
@@ -328,23 +293,21 @@ mfxStatus CDecodingPipeline::CreateAllocator()
 void CDecodingPipeline::DeleteFrames()
 {
 
+	// clear containers
+	while( m_OutQueue.empty() == false) m_OutQueue.pop();
+	while( m_FreeQueue.empty() == false) m_FreeQueue.pop();
+	while( m_SyncQueue.empty() == false) m_SyncQueue.pop();
+	m_UsedQueue.clear();
+	m_SurfaceMap.clear();
+
 	// delete IO pool
 	delete m_IOSurfacePool;
 
     // delete frames
-    if (m_pFrameAllocator)
-    {
-        m_pFrameAllocator->Free(m_pFrameAllocator->pthis, &m_mfxResponse);
-    }
+	mfxFrameAllocator* pAlloc = (mfxFrameAllocator*) m_pRender->getFrameAllocator();
+    pAlloc->Free(pAlloc->pthis, &m_mfxResponse);
 
     return;
-}
-
-void CDecodingPipeline::DeleteAllocator()
-{
-	m_pFrameAllocator = NULL;
-    // delete allocator
-    MSDK_SAFE_DELETE(m_pD3DAllocator);
 }
 
 mfxStatus CDecodingPipeline::ResetDecoder(sInputParams *pParams)
@@ -389,11 +352,12 @@ mfxStatus CDecodingPipeline::DeliverOutput(mfxFrameSurface1* frame)
     if (!frame) {
         return MFX_ERR_NULL_PTR;
     }
-
-    res = m_pFrameAllocator->Lock(m_pFrameAllocator->pthis, frame->Data.MemId, &(frame->Data));
+    // alloc frames for decoder
+	mfxFrameAllocator* pAlloc = (mfxFrameAllocator*) m_pRender->getFrameAllocator();
+    res = pAlloc->Lock(pAlloc->pthis, frame->Data.MemId, &(frame->Data));
     if (MFX_ERR_NONE == res) {
         res = m_FileWriter.WriteNextFrame(frame);
-        sts = m_pFrameAllocator->Unlock(m_pFrameAllocator->pthis, frame->Data.MemId, &(frame->Data));
+        sts = pAlloc->Unlock(pAlloc->pthis, frame->Data.MemId, &(frame->Data));
     }
     if ((MFX_ERR_NONE == res) && (MFX_ERR_NONE != sts)) {
         res = sts;
@@ -470,13 +434,112 @@ void CDecodingPipeline::PrintPerFrameStat(bool force)
     }
 }
 
+IOFrameSurface * CDecodingPipeline::dequeOutSurface()
+{
+	WinRTCSDK::AutoLock l (m_lock);
+	IOFrameSurface *  pSurf = NULL;
+	if ( m_OutQueue.empty() == false)
+	{
+		pSurf = m_OutQueue.front();
+		m_OutQueue.pop();
+	}
+	return pSurf;
+}
+
+void CDecodingPipeline::enqueueOutSurface(IOFrameSurface * pSurf)
+{
+	WinRTCSDK::AutoLock l (m_lock);
+	m_OutQueue.push(pSurf);
+}
+
+void CDecodingPipeline::returnOutSurface(IOFrameSurface * pSurf)
+{
+	WinRTCSDK::AutoLock l (m_lock);
+	if ( pSurf->frame.Data.Locked ==0 ){// locked by decoder
+		m_FreeQueue.push(pSurf);
+	}else{
+		m_UsedQueue.push_back(pSurf);
+	}
+}
+
+IOFrameSurface * CDecodingPipeline::dequeFreeSurface()
+{
+	WinRTCSDK::AutoLock l (m_lock);
+	IOFrameSurface *  pSurf = NULL;
+	if ( m_FreeQueue.empty() == false)
+	{
+		pSurf = m_FreeQueue.front();
+		m_FreeQueue.pop();
+	}
+	return pSurf;
+}
+
+void CDecodingPipeline::recycleUsedSurface()
+{
+	WinRTCSDK::AutoLock l (m_lock);
+	std::vector<IOFrameSurface*>::iterator i = m_UsedQueue.begin();
+	while (i != m_UsedQueue.end()){
+		if ( (*i)->frame.Data.Locked ==0 ){ // freed by decoder
+			m_FreeQueue.push(*i);
+			i = m_UsedQueue.erase(i);
+			continue;
+		}else{
+			i++;
+		}
+	}
+}
+
+mfxStatus  CDecodingPipeline::syncOutSurface ( int waitTime)
+{
+	IOFrameSurface* pSurf = NULL;
+	if ( m_SyncQueue.empty()) return MFX_ERR_MORE_DATA;
+
+	pSurf = m_SyncQueue.front();
+
+	mfxStatus sts = m_mfxSession.SyncOperation(pSurf->syncPoint, waitTime);
+
+	if (MFX_WRN_IN_EXECUTION == sts) {
+		return sts;
+	}
+
+	if (MFX_ERR_NONE != sts){
+		sts = MFX_ERR_UNKNOWN;
+		return sts;
+	}
+	// we got completely decoded frame - pushing it to the delivering thread...
+	++m_synced_count;
+	if (m_bPrintLatency) {
+		m_vLatency.push_back(m_timer_overall.Sync() - pSurf->submit);
+	}else {
+		PrintPerFrameStat();
+	}
+
+	if(m_nMaxFps)
+	{
+		//calculation of a time to sleep in order not to exceed a given fps
+		mfxF64 currentTime = (m_output_count) ? CTimer::ConvertToSeconds(m_tick_overall) : 0.0;
+		int time_to_sleep = (int)(1000 * ((double)m_output_count / m_nMaxFps - currentTime));
+		if (time_to_sleep > 0)
+		{
+			MSDK_SLEEP(time_to_sleep);
+		}
+	}
+
+	m_SyncQueue.pop();
+	enqueueOutSurface(pSurf);
+
+	m_pDeliveredEvent->Reset();
+	m_pDeliverOutputSemaphore->Post();
+
+	return sts;
+}
+
 mfxStatus CDecodingPipeline::RunDecoding()
 {
-    mfxFrameSurface1*   pOutSurface = NULL;
     mfxBitstream*       pBitstream = &m_mfxBS;
     mfxStatus           sts = MFX_ERR_NONE;
     bool                bErrIncompatibleVideoParams = false;
-    CTimeInterval<>     decodeTimer(m_bIsCompleteFrame);
+    CTimeInterval<>     decodeTimer(true);
     time_t start_time = time(0);
     MSDKThread * pDeliverThread = NULL;
 
@@ -484,47 +547,56 @@ mfxStatus CDecodingPipeline::RunDecoding()
     m_pDeliverOutputSemaphore = new Win32Semaphore(sts);
     m_pDeliveredEvent = new Win32Event(TRUE);
     pDeliverThread = new MSDKThread(sts, DeliverThreadFunc, this);
-    if (!pDeliverThread || !m_pDeliverOutputSemaphore || !m_pDeliveredEvent) {
+    if (!pDeliverThread || !m_pDeliverOutputSemaphore || !m_pDeliveredEvent)
+	{
         MSDK_SAFE_DELETE(pDeliverThread);
         MSDK_SAFE_DELETE(m_pDeliverOutputSemaphore);
         MSDK_SAFE_DELETE(m_pDeliveredEvent);
         return MFX_ERR_MEMORY_ALLOC;
     }
 
-	IOFrameSurface * pFreeSurf;
-    while (((sts == MFX_ERR_NONE) || (MFX_ERR_MORE_DATA == sts) || (MFX_ERR_MORE_SURFACE == sts)) && (m_nFrames > m_output_count))
+	mfxSyncPoint      syncPoint = 0;
+	mfxFrameSurface1* pOutSurface = NULL;
+	IOFrameSurface *  pFreeSurf = NULL;
+
+    while (((sts == MFX_ERR_NONE) || (MFX_ERR_MORE_DATA == sts) || (MFX_ERR_MORE_SURFACE == sts)) )
 	{
         if (MFX_ERR_NONE != m_error) {
             msdk_printf(MSDK_STRING("DeliverOutput return error = %d\n"),m_error);
             break;
         }
 
-        if (pBitstream && ((MFX_ERR_MORE_DATA == sts) || (m_bIsCompleteFrame && !pBitstream->DataLength))) {
+		if (m_nFrames < m_output_count){
+			break;
+		}
+
+		// read more bits
+        if (pBitstream && ((MFX_ERR_MORE_DATA == sts) || (0==pBitstream->DataLength))) 
+		{
             CAutoTimer timer_fread(m_tick_fread);
-            sts = m_FileReader->ReadNextFrame(pBitstream); // read more data to input bit stream
+            mfxStatus status_read = m_FileReader->ReadNextFrame(pBitstream); // read more data to input bit stream
 
-            if (MFX_ERR_MORE_DATA == sts) {
+            if (MFX_ERR_MORE_DATA == status_read) {
 				pBitstream = NULL;
-				sts = MFX_ERR_NONE;
-
-            } else if (MFX_ERR_NONE != sts) {
+            } else if (MFX_ERR_NONE != status_read) {
                 break;
             }
         }
 
-		pFreeSurf = NULL;
-        if ((MFX_ERR_NONE == sts) || (MFX_ERR_MORE_DATA == sts) || (MFX_ERR_MORE_SURFACE == sts))
+		// check if surface unlocked by decoder component
+		recycleUsedSurface();
+
+		// schedule more working frame
+        if ((MFX_ERR_NONE == sts) || (MFX_ERR_MORE_SURFACE == sts))
 		{
-			recycleUsedSurface();
-
 			pFreeSurf = dequeFreeSurface();
-
             if (!pFreeSurf)
 			{
                 // we stuck with no free surface available, now we will sync...
-                sts = syncOutSurface(30 * 1000);
+                mfxStatus sync_sts = syncOutSurface(MSDK_DEC_WAIT_INTERVAL);
                 
-				if (MFX_ERR_MORE_DATA == sts) 
+				// sync queue is empty
+				if (MFX_ERR_MORE_DATA == sync_sts) 
 				{
                     if (m_synced_count != m_output_count) {
 						sts = m_pDeliveredEvent->Wait(MSDK_DEC_WAIT_INTERVAL)?MFX_ERR_NONE:MFX_ERR_NOT_FOUND;
@@ -539,114 +611,80 @@ mfxStatus CDecodingPipeline::RunDecoding()
                 // note: MFX_WRN_IN_EXECUTION will also be treated as an error at this point
                 continue;
             }
-
-            if (!m_pCurrentFreeOutputSurface) {
-                m_pCurrentFreeOutputSurface = GetFreeOutputSurface();
-            }
-            if (!m_pCurrentFreeOutputSurface) {
-                sts = MFX_ERR_NOT_FOUND;
-                break;
-            }
         }
 
-        // exit by timeout
-        if ((MFX_ERR_NONE == sts) &&  (time(0)-start_time) >= m_nTimeout) {
-            sts = MFX_ERR_NONE;
-            break;
-        }
 
-        if ((MFX_ERR_NONE == sts) || (MFX_ERR_MORE_DATA == sts) || (MFX_ERR_MORE_SURFACE == sts))
+		do 
 		{
-            if (m_bIsCompleteFrame) {
-                m_pCurrentFreeSurface->submit = m_timer_overall.Sync();
-            }
-            pOutSurface = NULL;
-            do {
-                sts = m_pmfxDEC->DecodeFrameAsync(pBitstream, &(m_pCurrentFreeSurface->frame), &pOutSurface, &(m_pCurrentFreeOutputSurface->syncp));
-                if (pBitstream && MFX_ERR_MORE_DATA == sts && pBitstream->MaxLength == pBitstream->DataLength)
-                {
-                    mfxStatus status = ExtendMfxBitstream(pBitstream, pBitstream->MaxLength * 2);
-                    MSDK_CHECK_RESULT(status, MFX_ERR_NONE, status);
-                }
+			pFreeSurf->submit = m_timer_overall.Sync();
+			pOutSurface = NULL;
+			syncPoint = 0;
+			sts = m_pmfxDEC->DecodeFrameAsync(pBitstream, &(pFreeSurf->frame), &pOutSurface, &syncPoint);
+			if (pBitstream && MFX_ERR_MORE_DATA == sts && pBitstream->MaxLength == pBitstream->DataLength)
+			{
+				mfxStatus status = ExtendMfxBitstream(pBitstream, pBitstream->MaxLength * 2);
+				MSDK_CHECK_RESULT(status, MFX_ERR_NONE, status);
+			}
 
-                if (MFX_WRN_DEVICE_BUSY == sts) {
-                    if (m_bIsCompleteFrame) {
-                        //in low latency mode device busy leads to increasing of latency
-                        //msdk_printf(MSDK_STRING("Warning : latency increased due to MFX_WRN_DEVICE_BUSY\n"));
-                    }
-                    mfxStatus _sts = SyncOutputSurface(MSDK_DEC_WAIT_INTERVAL);
-                    // note: everything except MFX_ERR_NONE are errors at this point
-                    if (MFX_ERR_NONE == _sts) {
-                        sts = MFX_WRN_DEVICE_BUSY;
-                    } else {
-                        sts = _sts;
-                        if (MFX_ERR_MORE_DATA == sts) {
-                            // we can't receive MFX_ERR_MORE_DATA and have no output - that's a bug
-                            sts = MFX_WRN_DEVICE_BUSY;//MFX_ERR_NOT_FOUND;
-                        }
-                    }
-                }
-            } while (MFX_WRN_DEVICE_BUSY == sts);
+			if (MFX_WRN_DEVICE_BUSY == sts)
+			{
+				mfxStatus sync_sts = syncOutSurface(MSDK_DEC_WAIT_INTERVAL);
+				// note: everything except MFX_ERR_NONE are errors at this point
+				switch (sync_sts)
+				{
+				case MFX_ERR_NONE:
+				case MFX_ERR_MORE_DATA:
+					sts = MFX_WRN_DEVICE_BUSY;
+					break;
+				default:
+					sts = sync_sts;
+					break;
+				}
+			}
+		} while (MFX_WRN_DEVICE_BUSY == sts);
 
-            if (sts > MFX_ERR_NONE) {
-                // ignoring warnings...
-                if (m_pCurrentFreeOutputSurface->syncp) {
-                    MSDK_SELF_CHECK(pOutSurface);
-                    // output is available
-                    sts = MFX_ERR_NONE;
-                } else {
-                    // output is not available
-                    sts = MFX_ERR_MORE_SURFACE;
-                }
-            } else if ((MFX_ERR_MORE_DATA == sts) && pBitstream) {
-                if (m_bIsCompleteFrame && pBitstream->DataLength)
-                {
-                    // In low_latency mode decoder have to process bitstream completely
-                    msdk_printf(MSDK_STRING("error: Incorrect decoder behavior in low latency mode (bitstream length is not equal to 0 after decoding)\n"));
-                    sts = MFX_ERR_UNDEFINED_BEHAVIOR;
-                    continue;
-                }
-            } else if ((MFX_ERR_MORE_DATA == sts) && !pBitstream) {
-                // that's it - we reached end of stream; now we need to render bufferred data...
-                do {
-                    sts = SyncOutputSurface(MSDK_DEC_WAIT_INTERVAL);
-                } while (MFX_ERR_NONE == sts);
+		if (sts > MFX_ERR_NONE) {
+			// ignoring warnings...
+			if (syncPoint && pOutSurface) {
+				// output is available
+				sts = MFX_ERR_NONE;
+			} else {
+				// output is not available
+				sts = MFX_ERR_MORE_SURFACE;
+			}
+		} else if ((MFX_ERR_MORE_DATA == sts) && pBitstream) {
+			continue;
+		} else if ((MFX_ERR_MORE_DATA == sts) && !pBitstream) {
+			// that's it - we reached end of stream; now we need to render bufferred data...
+			do {
+				sts = syncOutSurface(MSDK_DEC_WAIT_INTERVAL);
+			} while (MFX_ERR_NONE == sts);
 
-                while (m_synced_count != m_output_count) {
-                    m_pDeliveredEvent->Wait();
-                }
+			while (m_synced_count != m_output_count) {
+				m_pDeliveredEvent->Wait();
+			}
 
-                if (MFX_ERR_MORE_DATA == sts) {
-                    sts = MFX_ERR_NONE;
-                }
-                break;
-            } else if (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == sts) {
-                bErrIncompatibleVideoParams = true;
-                // need to go to the buffering loop prior to reset procedure
-                pBitstream = NULL;
-                sts = MFX_ERR_NONE;
-                continue;
-            }
-        }
-
-        if ((MFX_ERR_NONE == sts) || (MFX_ERR_MORE_DATA == sts) || (MFX_ERR_MORE_SURFACE == sts)) {
-            // if current free surface is locked we are moving it to the used surfaces array
-            /*if (m_pCurrentFreeSurface->frame.Data.Locked)*/ {
-                m_UsedSurfacesPool.AddSurface(m_pCurrentFreeSurface);
-                m_pCurrentFreeSurface = NULL;
-            }
-        }
+			if (MFX_ERR_MORE_DATA == sts) {
+				sts = MFX_ERR_NONE;
+			}
+			break;
+		} else if (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == sts) {
+			bErrIncompatibleVideoParams = true;
+			// need to go to the buffering loop prior to reset procedure
+			pBitstream = NULL;
+			sts = MFX_ERR_NONE;
+			continue;
+		}
+        
+		// has one syncpoint
         if (MFX_ERR_NONE == sts) {
-            
-            msdkFrameSurface* surface = FindUsedSurface(pOutSurface);
 
-            msdk_atomic_inc16(&(surface->render_lock));
-
-            m_pCurrentFreeOutputSurface->surface = surface;
-            m_OutputSurfacesPool.AddSurface(m_pCurrentFreeOutputSurface);
-            m_pCurrentFreeOutputSurface = NULL;
-            
+			IOFrameSurface * pSync = m_SurfaceMap[pOutSurface];
+			pSync->syncPoint = syncPoint;
+			m_SyncQueue.push(pSync);            
         }
+
+
     } //while processing
 
     PrintPerFrameStat(true);
@@ -705,9 +743,7 @@ void CDecodingPipeline::PrintInfo()
     mfxF64 dFrameRate = CalculateFrameRate(Info.FrameRateExtN, Info.FrameRateExtD);
     msdk_printf(MSDK_STRING("Frame rate\t%.2f\n"), dFrameRate);
 
-    const msdk_char* sMemType = m_memType == D3D9_MEMORY  ? MSDK_STRING("d3d")
-                             : (m_memType == D3D11_MEMORY ? MSDK_STRING("d3d11")
-                                                          : MSDK_STRING("system"));
+    const msdk_char* sMemType =  MSDK_STRING("d3d") ;
     msdk_printf(MSDK_STRING("Memory type\t\t%s\n"), sMemType);
 
 

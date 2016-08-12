@@ -53,7 +53,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions> _CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(INTELMEDIASDKROOT)\include;..\nativemedia;..\nativemedia\audio;..\nativemedia\codec</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(INTELMEDIASDKROOT)\include;..\nativemedia;..\nativemedia\audio;..\nativemedia\codec;..\mediatest32</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -71,7 +71,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(INTELMEDIASDKROOT)\include;..\nativemedia;..\nativemedia\audio;..\nativemedia\codec</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(INTELMEDIASDKROOT)\include;..\nativemedia;..\nativemedia\audio;..\nativemedia\codec;..\mediatest32</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -86,6 +86,14 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\NativeMedia\audio\AudioManager.cpp" />
+    <ClCompile Include="..\NativeMedia\audio\AudioResampler.cpp" />
+    <ClCompile Include="..\NativeMedia\audio\MicControl .cpp" />
+    <ClCompile Include="..\NativeMedia\audio\MMNotificationClient.cpp" />
+    <ClCompile Include="..\NativeMedia\audio\SessionEvents.cpp" />
+    <ClCompile Include="..\NativeMedia\audio\UTAudio.cpp" />
+    <ClCompile Include="..\NativeMedia\audio\WASAPICapture.cpp" />
+    <ClCompile Include="..\NativeMedia\audio\WASAPIRenderer.cpp" />
     <ClCompile Include="..\NativeMedia\BaseWnd.cpp" />
     <ClCompile Include="..\NativeMedia\codec\avc_bitstream.cpp" />
     <ClCompile Include="..\NativeMedia\codec\avc_nal_spl.cpp" />
@@ -111,9 +119,22 @@
     </ClCompile>
     <ClCompile Include="..\NativeMedia\VideoHWND.cpp" />
     <ClCompile Include="..\NativeMedia\VideoManager.cpp" />
+    <ClCompile Include="decoding.cpp" />
     <ClCompile Include="mediatest32.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\NativeMedia\audio\AudioClientCallbacks.h" />
+    <ClInclude Include="..\NativeMedia\audio\AudioClientDataCallbacks.h" />
+    <ClInclude Include="..\NativeMedia\audio\AudioManager.h" />
+    <ClInclude Include="..\NativeMedia\audio\AudioResampler.h" />
+    <ClInclude Include="..\NativeMedia\audio\MicControl.h" />
+    <ClInclude Include="..\NativeMedia\audio\MMNotificationClient.h" />
+    <ClInclude Include="..\NativeMedia\audio\ResampleInterpTabs.h" />
+    <ClInclude Include="..\NativeMedia\audio\SessionEvents.h" />
+    <ClInclude Include="..\NativeMedia\audio\WASAPICapture.h" />
+    <ClInclude Include="..\NativeMedia\audio\WASAPIComPtrDefs.h" />
+    <ClInclude Include="..\NativeMedia\audio\WASAPIRenderer.h" />
+    <ClInclude Include="..\NativeMedia\audio\WavHelper.h" />
     <ClInclude Include="..\NativeMedia\AutoLock.h" />
     <ClInclude Include="..\NativeMedia\BaseWnd.h" />
     <ClInclude Include="..\NativeMedia\BlockingQueue.h" />
@@ -151,6 +172,7 @@
     <ClInclude Include="..\NativeMedia\VideoManager.h" />
     <ClInclude Include="..\NativeMedia\Win32Event.h" />
     <ClInclude Include="..\NativeMedia\WinRTCSDKTypes.h" />
+    <ClInclude Include="va_interface.h" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="PresentationCore" />

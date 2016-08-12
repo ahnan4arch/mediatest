@@ -259,7 +259,7 @@ mfxStatus D3DFrameAllocator::AllocImpl(mfxFrameAllocRequest *request, mfxFrameAl
             if (FAILED(hr))
                 return MFX_ERR_MEMORY_ALLOC;
 
-            hr = m_manager->GetVideoService(m_hProcessor, IID_IDirectXVideoProcessorService, (void**)&m_processorService);
+            hr = m_manager->GetVideoService(m_hProcessor, __uuidof(IDirectXVideoProcessorService), (void**)&m_processorService);
             if (FAILED(hr))
                 return MFX_ERR_MEMORY_ALLOC;
         }
@@ -272,7 +272,7 @@ mfxStatus D3DFrameAllocator::AllocImpl(mfxFrameAllocRequest *request, mfxFrameAl
             if (FAILED(hr))
                 return MFX_ERR_MEMORY_ALLOC;
 
-            hr = m_manager->GetVideoService(m_hDecoder, IID_IDirectXVideoDecoderService, (void**)&m_decoderService);
+            hr = m_manager->GetVideoService(m_hDecoder, __uuidof(IDirectXVideoDecoderService), (void**)&m_decoderService);
             if (FAILED(hr))
                 return MFX_ERR_MEMORY_ALLOC;
         }

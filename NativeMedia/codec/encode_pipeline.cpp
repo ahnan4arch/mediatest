@@ -268,7 +268,7 @@ void CEncodingPipeline::FreeVppDoNotUse()
     MSDK_SAFE_DELETE_ARRAY(m_VppDoNotUse.AlgList);
 }
 
-mfxStatus CEncodingPipeline::InitMfxEncParams(sInputParams *pInParams)
+mfxStatus CEncodingPipeline::InitMfxEncParams(EncodeInputParams *pInParams)
 {
     m_mfxEncParams.mfx.CodecId                 = pInParams->CodecId;
     m_mfxEncParams.mfx.TargetUsage             = pInParams->nTargetUsage; // trade-off between quality and speed
@@ -368,7 +368,7 @@ mfxStatus CEncodingPipeline::InitMfxEncParams(sInputParams *pInParams)
     return MFX_ERR_NONE;
 }
 
-mfxStatus CEncodingPipeline::InitMfxVppParams(sInputParams *pInParams)
+mfxStatus CEncodingPipeline::InitMfxVppParams(EncodeInputParams *pInParams)
 {
     MSDK_CHECK_POINTER(pInParams,  MFX_ERR_NULL_PTR);
 
@@ -669,7 +669,7 @@ mfxStatus CEncodingPipeline::InitFileWriter(CSmplBitstreamWriter **ppWriter, con
     return sts;
 }
 
-mfxStatus CEncodingPipeline::InitFileWriters(sInputParams *pParams)
+mfxStatus CEncodingPipeline::InitFileWriters(EncodeInputParams *pParams)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
 
@@ -684,7 +684,7 @@ mfxStatus CEncodingPipeline::InitFileWriters(sInputParams *pParams)
     return sts;
 }
 
-mfxStatus CEncodingPipeline::Init(sInputParams *pParams)
+mfxStatus CEncodingPipeline::Init(EncodeInputParams *pParams)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
 
@@ -831,7 +831,7 @@ void CEncodingPipeline::FreeFileWriters()
     MSDK_SAFE_DELETE(m_FileWriters.second);
 }
 
-mfxStatus CEncodingPipeline::ResetMFXComponents(sInputParams* pParams)
+mfxStatus CEncodingPipeline::ResetMFXComponents(EncodeInputParams* pParams)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
     MSDK_CHECK_POINTER(m_pmfxENC, MFX_ERR_NOT_INITIALIZED);

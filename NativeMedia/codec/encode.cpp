@@ -91,7 +91,7 @@ void PrintHelp(msdk_char *strAppName, const msdk_char *strErrorMessage, ...)
     msdk_printf(MSDK_STRING("\n"));
 }
 
-mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* pParams)
+mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, EncodeInputParams* pParams)
 {
 
     if (1 == nArgNum)
@@ -536,7 +536,7 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams* p
     return MFX_ERR_NONE;
 }
 
-CEncodingPipeline* CreatePipeline(const sInputParams& params)
+CEncodingPipeline* CreatePipeline(const EncodeInputParams& params)
 {
 
     {
@@ -546,7 +546,7 @@ CEncodingPipeline* CreatePipeline(const sInputParams& params)
 
 int _tmain_encode(int argc, msdk_char *argv[])
 {
-    sInputParams Params = {};   // input parameters from command line
+    EncodeInputParams Params = {};   // input parameters from command line
     std::auto_ptr<CEncodingPipeline>  pPipeline;
 
     mfxStatus sts = MFX_ERR_NONE; // return value check
@@ -574,7 +574,6 @@ int _tmain_encode(int argc, msdk_char *argv[])
         if (MFX_ERR_DEVICE_LOST == sts || MFX_ERR_DEVICE_FAILED == sts)
         {
             msdk_printf(MSDK_STRING("\nERROR: Hardware device was lost or returned an unexpected error. Recovering...\n"));
-            sts = pPipeline->ResetDevice();
             MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, 1);
 
             sts = pPipeline->ResetMFXComponents(&Params);

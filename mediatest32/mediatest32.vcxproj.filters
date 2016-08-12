@@ -15,6 +15,9 @@
     <Filter Include="video">
       <UniqueIdentifier>{f3923a54-f808-4a56-86cd-3056863f35fe}</UniqueIdentifier>
     </Filter>
+    <Filter Include="audio">
+      <UniqueIdentifier>{946056b1-a135-4456-8833-194b2e493123}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -88,6 +91,33 @@
     </ClCompile>
     <ClCompile Include="..\NativeMedia\codec\encode.cpp">
       <Filter>codec</Filter>
+    </ClCompile>
+    <ClCompile Include="decoding.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\audio\AudioManager.cpp">
+      <Filter>audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\audio\AudioResampler.cpp">
+      <Filter>audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\audio\MicControl .cpp">
+      <Filter>audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\audio\MMNotificationClient.cpp">
+      <Filter>audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\audio\SessionEvents.cpp">
+      <Filter>audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\audio\UTAudio.cpp">
+      <Filter>audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\audio\WASAPICapture.cpp">
+      <Filter>audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\NativeMedia\audio\WASAPIRenderer.cpp">
+      <Filter>audio</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -201,6 +231,45 @@
     </ClInclude>
     <ClInclude Include="..\NativeMedia\codec\sys_primitives.h">
       <Filter>codec</Filter>
+    </ClInclude>
+    <ClInclude Include="va_interface.h">
+      <Filter>video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\audio\AudioClientCallbacks.h">
+      <Filter>audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\audio\AudioClientDataCallbacks.h">
+      <Filter>audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\audio\AudioManager.h">
+      <Filter>audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\audio\AudioResampler.h">
+      <Filter>audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\audio\MicControl.h">
+      <Filter>audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\audio\MMNotificationClient.h">
+      <Filter>audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\audio\ResampleInterpTabs.h">
+      <Filter>audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\audio\SessionEvents.h">
+      <Filter>audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\audio\WASAPICapture.h">
+      <Filter>audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\audio\WASAPIComPtrDefs.h">
+      <Filter>audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\audio\WASAPIRenderer.h">
+      <Filter>audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\NativeMedia\audio\WavHelper.h">
+      <Filter>audio</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
