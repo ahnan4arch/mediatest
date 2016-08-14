@@ -89,23 +89,23 @@ class CDecodingPipeline:
 {
 public:
     CDecodingPipeline();
-    virtual ~CDecodingPipeline();
+    ~CDecodingPipeline();
+	mfxStatus Run();
+    mfxStatus Init(sInputParams *pParams, MP::IDXVAVideoRender* pRender);
+    mfxStatus RunDecoding();
+    void Close();
+    mfxStatus ResetDecoder(sInputParams *pParams);
 
-    virtual mfxStatus Init(sInputParams *pParams, MP::IDXVAVideoRender* pRender);
-    virtual mfxStatus RunDecoding();
-    virtual void Close();
-    virtual mfxStatus ResetDecoder(sInputParams *pParams);
-
-    virtual void PrintInfo();
+    void PrintInfo();
 
 protected: // functions
-    virtual mfxStatus InitMfxParams(sInputParams *pParams);
-    virtual mfxStatus AllocFrames();
-    virtual void DeleteFrames();
+    mfxStatus InitMfxParams(sInputParams *pParams);
+    mfxStatus AllocFrames();
+    void DeleteFrames();
 
-    virtual mfxStatus DeliverOutput(mfxFrameSurface1* frame);
-    virtual void PrintPerFrameStat(bool force = false);
-    virtual mfxStatus DeliverLoop(void);
+    mfxStatus DeliverOutput(mfxFrameSurface1* frame);
+    void PrintPerFrameStat(bool force = false);
+    mfxStatus DeliverLoop(void);
     static DWORD MFX_STDCALL DeliverThreadFunc(void* ctx);
 
 	// buffering operation
@@ -151,6 +151,7 @@ protected: // variables
     std::vector<msdk_tick>  m_vLatency;
 
 	MP::IDXVAVideoRender*   m_pRender;
+	sInputParams            m_Params;
 private:
     CDecodingPipeline(const CDecodingPipeline&);
     void operator=(const CDecodingPipeline&);

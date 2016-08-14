@@ -49,6 +49,7 @@ CDecodingPipeline::~CDecodingPipeline()
 mfxStatus CDecodingPipeline::Init(sInputParams *pParams, MP::IDXVAVideoRender* pRender)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
+	m_Params=*pParams;
 
 	// va interface
 	m_pRender = pRender;
@@ -56,7 +57,7 @@ mfxStatus CDecodingPipeline::Init(sInputParams *pParams, MP::IDXVAVideoRender* p
     mfxStatus sts = MFX_ERR_NONE;
 
     // prepare input stream file reader
-    switch (pParams->videoType)
+    switch (m_Params.videoType)
     {
     case MFX_CODEC_HEVC:
     case MFX_CODEC_AVC:
@@ -68,10 +69,10 @@ mfxStatus CDecodingPipeline::Init(sInputParams *pParams, MP::IDXVAVideoRender* p
 	}
 
 
-    m_nMaxFps = pParams->nMaxFPS;
+    m_nMaxFps = m_Params.nMaxFPS;
     m_nFrames =  MFX_INFINITE;
 
-    sts = m_FileReader->Init(pParams->strSrcFile);
+    sts = m_FileReader->Init(m_Params.strSrcFile);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     mfxInitParam initPar;
@@ -86,7 +87,7 @@ mfxStatus CDecodingPipeline::Init(sInputParams *pParams, MP::IDXVAVideoRender* p
     initPar.GPUCopy = MFX_GPUCOPY_DEFAULT;
 
     // Init session
-    if (pParams->bUseHWLib) {
+    if (m_Params.bUseHWLib) {
         // try searching on all display adapters
         initPar.Implementation = MFX_IMPL_HARDWARE_ANY;
         initPar.Implementation |= MFX_IMPL_VIA_D3D9;
@@ -114,21 +115,21 @@ mfxStatus CDecodingPipeline::Init(sInputParams *pParams, MP::IDXVAVideoRender* p
     MSDK_CHECK_POINTER(m_pmfxDEC, MFX_ERR_MEMORY_ALLOC);
 
     // set video type in parameters
-    m_mfxVideoParams.mfx.CodecId = pParams->videoType;
+    m_mfxVideoParams.mfx.CodecId = m_Params.videoType;
 
     // prepare bit stream
-    if (MFX_CODEC_CAPTURE != pParams->videoType)
+    if (MFX_CODEC_CAPTURE != m_Params.videoType)
     {
         sts = InitMfxBitstream(&m_mfxBS, 1024 * 1024);
         MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
     }
 
     // Populate parameters. Involves DecodeHeader call
-    sts = InitMfxParams(pParams);
+    sts = InitMfxParams(&m_Params);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
        
     // prepare YUV file writer
-    sts = m_FileWriter.Init(pParams->strDstFile, 1);
+    sts = m_FileWriter.Init(m_Params.strDstFile, 1);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
 	// set device handle
@@ -313,7 +314,7 @@ void CDecodingPipeline::DeleteFrames()
 mfxStatus CDecodingPipeline::ResetDecoder(sInputParams *pParams)
 {
     mfxStatus sts = MFX_ERR_NONE;
-
+	m_Params = *pParams;
     // close decoder
     sts = m_pmfxDEC->Close();
     MSDK_IGNORE_MFX_STS(sts, MFX_ERR_NOT_INITIALIZED);
@@ -323,7 +324,7 @@ mfxStatus CDecodingPipeline::ResetDecoder(sInputParams *pParams)
     DeleteFrames();
 
     // initialize parameters with values from parsed header
-    sts = InitMfxParams(pParams);
+    sts = InitMfxParams(&m_Params);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     // in case of HW accelerated decode frames must be allocated prior to decoder initialization
@@ -722,6 +723,38 @@ mfxStatus CDecodingPipeline::RunDecoding()
     }
 
     return sts; // ERR_NONE or ERR_INCOMPATIBLE_VIDEO_PARAM
+}
+
+mfxStatus CDecodingPipeline::Run()
+{
+	mfxStatus sts = MFX_ERR_NONE; // return value check
+
+    for (;;)
+    {
+        sts = RunDecoding();
+
+        if (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == sts || MFX_ERR_DEVICE_LOST == sts || MFX_ERR_DEVICE_FAILED == sts)
+        {
+            if (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == sts)
+            {
+                msdk_printf(MSDK_STRING("\nERROR: Incompatible video parameters detected. Recovering...\n"));
+            }
+            else
+            {
+                msdk_printf(MSDK_STRING("\nERROR: Hardware device was lost or returned unexpected error. Recovering...\n"));
+            }
+
+            sts = ResetDecoder(&m_Params);
+            MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, MFX_ERR_UNKNOWN);
+            continue;
+        }
+        else
+        {
+            MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, MFX_ERR_UNKNOWN);
+            break;
+        }
+    }
+
 }
 
 void CDecodingPipeline::PrintInfo()

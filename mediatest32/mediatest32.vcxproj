@@ -103,7 +103,6 @@
     <ClCompile Include="..\NativeMedia\codec\encode.cpp" />
     <ClCompile Include="..\NativeMedia\codec\decode_pipeline.cpp" />
     <ClCompile Include="..\NativeMedia\codec\encode_pipeline.cpp" />
-    <ClCompile Include="..\NativeMedia\codec\decode.cpp" />
     <ClCompile Include="..\NativeMedia\codec\codec_utils.cpp" />
     <ClCompile Include="..\NativeMedia\codec\sysmem_allocator.cpp" />
     <ClCompile Include="..\NativeMedia\D3D9Renderer.cpp" />
@@ -119,7 +118,7 @@
     </ClCompile>
     <ClCompile Include="..\NativeMedia\VideoHWND.cpp" />
     <ClCompile Include="..\NativeMedia\VideoManager.cpp" />
-    <ClCompile Include="decoding.cpp" />
+    <ClCompile Include="decode.h" />
     <ClCompile Include="mediatest32.cpp" />
   </ItemGroup>
   <ItemGroup>

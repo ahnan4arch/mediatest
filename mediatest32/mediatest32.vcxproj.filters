@@ -80,9 +80,6 @@
     <ClCompile Include="..\NativeMedia\codec\codec_utils.cpp">
       <Filter>codec</Filter>
     </ClCompile>
-    <ClCompile Include="..\NativeMedia\codec\decode.cpp">
-      <Filter>codec</Filter>
-    </ClCompile>
     <ClCompile Include="..\NativeMedia\codec\decode_pipeline.cpp">
       <Filter>codec</Filter>
     </ClCompile>
@@ -91,9 +88,6 @@
     </ClCompile>
     <ClCompile Include="..\NativeMedia\codec\encode.cpp">
       <Filter>codec</Filter>
-    </ClCompile>
-    <ClCompile Include="decoding.cpp">
-      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\NativeMedia\audio\AudioManager.cpp">
       <Filter>audio</Filter>
@@ -118,6 +112,9 @@
     </ClCompile>
     <ClCompile Include="..\NativeMedia\audio\WASAPIRenderer.cpp">
       <Filter>audio</Filter>
+    </ClCompile>
+    <ClCompile Include="decode.h">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

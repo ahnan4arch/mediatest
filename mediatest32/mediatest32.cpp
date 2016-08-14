@@ -4,8 +4,12 @@
 #include "stdafx.h"
 #include <string>
 
+#include "Looper.h"
 #include "D3D9Renderer.h"
+#include "decode_pipeline.h"
+
 using namespace WinRTCSDK;
+using namespace MP;
 
 #pragma comment (lib, "avrt.lib")
 #pragma comment (lib, "comsuppw.lib ")
@@ -23,40 +27,27 @@ using namespace WinRTCSDK;
 #pragma comment (lib, "comctl32.lib")
 #pragma comment (lib, "Dxva2.lib")
 
+#pragma comment (lib, "dxgi.lib")
+#pragma comment (lib, "dwmapi.lib")
 
 BYTE _image [320*240*3/2];
-int _tmain(int argc, _TCHAR* argv[])
-{
-//	testCompiler();
-	BaseWnd * dummyWnd_ = new BaseWnd(TRUE);
-	dummyWnd_->Create(0, L"DUMMYD3DRENDER", WS_OVERLAPPEDWINDOW, 0, 0, 400, 400, NULL, 0, NULL);
-	::ShowWindow(*dummyWnd_, SW_SHOW);
-	BaseWnd * dummyWnd1_ = new BaseWnd(TRUE);
-	dummyWnd1_->Create(0, L"DUMMYD3DRENDER", WS_OVERLAPPEDWINDOW, 0, 0, 400, 400, NULL, 0, NULL);
-	::ShowWindow(*dummyWnd1_, SW_SHOW);
 
-	D3D9Renderer render;
-	render.Create();
-	render.CreateVideo("testvid", *dummyWnd_);
-	render.CreateVideo("testvid1", *dummyWnd1_);
-	VideoFrameInfo frame;
-	frame.width = 320;
-	frame.height = 240;
-	frame.image = _image;
-	::memset(_image, 0, sizeof(_image));
+void make_fake_image ( BYTE * image)
+{
+	::memset(image, 0, sizeof(image));
 	for ( int j=0; j<240; j++)
 	{
 		for ( int i=0; i< 320; i++){
 			if ( i<160)
-				_image[i+j*320]=30;
+				image[i+j*320]=30;
 			else 
-				_image[i+j*320]= 64;
-			if ( j<120) _image[i+j*320]+=30;
-			else  _image[i+j*320] -= 30;
+				image[i+j*320]= 64;
+			if ( j<120) image[i+j*320]+=30;
+			else  image[i+j*320] -= 30;
 		}
 	}
 
-	BYTE * pU = &_image[240*320];
+	BYTE * pU = &image[240*320];
 	for ( int j=0; j<120; j++)
 	{
 		for ( int i=0; i< 160; i++){
@@ -72,7 +63,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 	}
 
-	BYTE * pV = &_image[240*320*5/4];
+	BYTE * pV = &image[240*320*5/4];
 	for ( int j=0; j<120; j++)
 	{
 		for ( int i=0; i< 160; i++){
@@ -87,9 +78,85 @@ int _tmain(int argc, _TCHAR* argv[])
 				pV[i+j*160] -= 20;
 		}
 	}
+}
+
+void testFakeImage()
+{
+	BaseWnd * dummyWnd_ = new BaseWnd(TRUE);
+	dummyWnd_->Create(0, L"DUMMYD3DRENDER", WS_OVERLAPPEDWINDOW, 0, 0, 400, 400, NULL, 0, NULL);
+	::ShowWindow(*dummyWnd_, SW_SHOW);
+
+	D3D9Renderer render;
+	render.Create();
+	render.CreateVideo("testvid", *dummyWnd_);
+	VideoFrameInfo frame;
+	frame.width = 320;
+	frame.height = 240;
+	frame.image = _image;
+
 	render.DrawVideo("testvid", frame);
-	render.DrawVideo("testvid1", frame);
-	getchar();
+}
+
+class  DecodeTest
+{
+public:
+	DecodeTest ():dispatcher_("DecodeTest"),params_(),pipeline_()
+	{
+	}
+	int TestProc()
+	{
+
+		msdk_printf(MSDK_STRING("Decoding started\n"));
+
+		params_.bUseHWLib = true;
+		params_.videoType = MFX_CODEC_AVC;
+		params_.nAsyncDepth = 4;
+
+		mfxStatus sts = pipeline_.Init(&params_, NULL);
+		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, 1);
+
+		// print stream info
+		pipeline_.PrintInfo();
+
+		pipeline_.Run();
+		msdk_printf(MSDK_STRING("\nDecoding finished\n"));
+		return 0;
+	}
+
+	void start ()
+	{
+		dispatcher_.startUp();
+	}
+	void stop()
+	{
+		dispatcher_.stopAndJoin();
+	}
+private:
+	Looper              dispatcher_;
+    sInputParams        params_;   // input parameters from command line
+    CDecodingPipeline   pipeline_; // pipeline for decoding, includes input file reader, decoder and output file writer
+
+};
+
+
+INT messagePump()
+{
+	MSG msg;
+	while(::GetMessage(&msg, NULL, 0, 0))
+	{
+		::TranslateMessage(&msg);
+		::DispatchMessage(&msg);
+	}
+
+	return 0;
+}
+
+int _tmain(int argc, _TCHAR* argv[])
+{
+//	testFakeImage();
+
+
+	messagePump();
 	return 0;
 }
 
