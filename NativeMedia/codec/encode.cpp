@@ -91,7 +91,7 @@ void PrintHelp(msdk_char *strAppName, const msdk_char *strErrorMessage, ...)
     msdk_printf(MSDK_STRING("\n"));
 }
 
-mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, EncodeInputParams* pParams)
+mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, EncodeParams* pParams)
 {
 
     if (1 == nArgNum)
@@ -536,7 +536,7 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, EncodeInputPara
     return MFX_ERR_NONE;
 }
 
-CEncodingPipeline* CreatePipeline(const EncodeInputParams& params)
+CEncodingPipeline* CreatePipeline(const EncodeParams& params)
 {
 
     {
@@ -546,7 +546,7 @@ CEncodingPipeline* CreatePipeline(const EncodeInputParams& params)
 
 int _tmain_encode(int argc, msdk_char *argv[])
 {
-    EncodeInputParams Params = {};   // input parameters from command line
+    EncodeParams Params = {};   // input parameters from command line
     std::auto_ptr<CEncodingPipeline>  pPipeline;
 
     mfxStatus sts = MFX_ERR_NONE; // return value check

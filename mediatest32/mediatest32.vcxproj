@@ -119,6 +119,7 @@
     <ClCompile Include="..\NativeMedia\VideoHWND.cpp" />
     <ClCompile Include="..\NativeMedia\VideoManager.cpp" />
     <ClCompile Include="decode.h" />
+    <ClCompile Include="fakeimage.cpp" />
     <ClCompile Include="mediatest32.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -35,7 +35,7 @@ enum MemType {
     D3D11_MEMORY  = 0x02,
 };
 
-struct EncodeInputParams
+struct EncodeParams
 {
     mfxU16 nTargetUsage;
     mfxU32 CodecId;
@@ -124,10 +124,10 @@ public:
     CEncodingPipeline();
     virtual ~CEncodingPipeline();
 
-    virtual mfxStatus Init(EncodeInputParams *pParams);
+    virtual mfxStatus Init(EncodeParams *pParams);
     virtual mfxStatus Run();
     virtual void Close();
-    virtual mfxStatus ResetMFXComponents(EncodeInputParams* pParams);
+    virtual mfxStatus ResetMFXComponents(EncodeParams* pParams);
 
     virtual void  PrintInfo();
 
@@ -169,10 +169,10 @@ protected:
 
     CTimeStatistics m_statOverall;
     CTimeStatistics m_statFile;
-    virtual mfxStatus InitMfxEncParams(EncodeInputParams *pParams);
-    virtual mfxStatus InitMfxVppParams(EncodeInputParams *pParams);
+    virtual mfxStatus InitMfxEncParams(EncodeParams *pParams);
+    virtual mfxStatus InitMfxVppParams(EncodeParams *pParams);
 
-    virtual mfxStatus InitFileWriters(EncodeInputParams *pParams);
+    virtual mfxStatus InitFileWriters(EncodeParams *pParams);
     virtual void FreeFileWriters();
     virtual mfxStatus InitFileWriter(CSmplBitstreamWriter **ppWriter, const msdk_char *filename);
 

@@ -40,7 +40,7 @@ struct IOFrameSurface
 	mfxSyncPoint syncPoint;
 };
 
-struct sInputParams
+struct DecodeParams
 {
     mfxU32 videoType;
     bool    bUseHWLib; // true if application wants to use HW mfx library
@@ -49,7 +49,7 @@ struct sInputParams
     msdk_char     strSrcFile[MSDK_MAX_FILENAME_LEN];
     msdk_char     strDstFile[MSDK_MAX_FILENAME_LEN];
 
-    sInputParams()
+    DecodeParams()
     {
         MSDK_ZERO_MEMORY(*this);
     }
@@ -91,15 +91,15 @@ public:
     CDecodingPipeline();
     ~CDecodingPipeline();
 	mfxStatus Run();
-    mfxStatus Init(sInputParams *pParams, MP::IDXVAVideoRender* pRender);
+    mfxStatus Init(DecodeParams *pParams, MP::IDXVAVideoRender* pRender);
     mfxStatus RunDecoding();
     void Close();
-    mfxStatus ResetDecoder(sInputParams *pParams);
+    mfxStatus ResetDecoder(DecodeParams *pParams);
 
     void PrintInfo();
 
 protected: // functions
-    mfxStatus InitMfxParams(sInputParams *pParams);
+    mfxStatus InitMfxParams(DecodeParams *pParams);
     mfxStatus AllocFrames();
     void DeleteFrames();
 
@@ -151,7 +151,7 @@ protected: // variables
     std::vector<msdk_tick>  m_vLatency;
 
 	MP::IDXVAVideoRender*   m_pRender;
-	sInputParams            m_Params;
+	DecodeParams            m_Params;
 private:
     CDecodingPipeline(const CDecodingPipeline&);
     void operator=(const CDecodingPipeline&);

@@ -46,7 +46,7 @@ CDecodingPipeline::~CDecodingPipeline()
     Close();
 }
 
-mfxStatus CDecodingPipeline::Init(sInputParams *pParams, MP::IDXVAVideoRender* pRender)
+mfxStatus CDecodingPipeline::Init(DecodeParams *pParams, MP::IDXVAVideoRender* pRender)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
 	m_Params=*pParams;
@@ -177,7 +177,7 @@ void CDecodingPipeline::Close()
     return;
 }
 
-mfxStatus CDecodingPipeline::InitMfxParams(sInputParams *pParams)
+mfxStatus CDecodingPipeline::InitMfxParams(DecodeParams *pParams)
 {
     MSDK_CHECK_POINTER(m_pmfxDEC, MFX_ERR_NULL_PTR);
     mfxStatus sts = MFX_ERR_NONE;
@@ -311,7 +311,7 @@ void CDecodingPipeline::DeleteFrames()
     return;
 }
 
-mfxStatus CDecodingPipeline::ResetDecoder(sInputParams *pParams)
+mfxStatus CDecodingPipeline::ResetDecoder(DecodeParams *pParams)
 {
     mfxStatus sts = MFX_ERR_NONE;
 	m_Params = *pParams;
@@ -354,17 +354,20 @@ mfxStatus CDecodingPipeline::DeliverOutput(mfxFrameSurface1* frame)
         return MFX_ERR_NULL_PTR;
     }
     // alloc frames for decoder
-	mfxFrameAllocator* pAlloc = (mfxFrameAllocator*) m_pRender->getFrameAllocator();
-    res = pAlloc->Lock(pAlloc->pthis, frame->Data.MemId, &(frame->Data));
-    if (MFX_ERR_NONE == res) {
-        res = m_FileWriter.WriteNextFrame(frame);
-        sts = pAlloc->Unlock(pAlloc->pthis, frame->Data.MemId, &(frame->Data));
-    }
-    if ((MFX_ERR_NONE == res) && (MFX_ERR_NONE != sts)) {
-        res = sts;
-    }
+	//mfxFrameAllocator* pAlloc = (mfxFrameAllocator*) m_pRender->getFrameAllocator();
+ //   res = pAlloc->Lock(pAlloc->pthis, frame->Data.MemId, &(frame->Data));
+ //   if (MFX_ERR_NONE == res) {
+ //       res = m_FileWriter.WriteNextFrame(frame);
+ //       sts = pAlloc->Unlock(pAlloc->pthis, frame->Data.MemId, &(frame->Data));
+ //   }
+ //   if ((MFX_ERR_NONE == res) && (MFX_ERR_NONE != sts)) {
+ //       res = sts;
+ //   }
     //res = m_hwdev->RenderFrame(frame, m_pFrameAllocator);
-
+	MP::VideoFrameData vidframe;
+	vidframe.pSurface = frame;
+	vidframe.type = MP::MFX_FRAME_SURFACE;
+	m_pRender->drawFrame(&vidframe);
     return res;
 }
 
@@ -535,6 +538,7 @@ mfxStatus  CDecodingPipeline::syncOutSurface ( int waitTime)
 	return sts;
 }
 
+int more_surf =0;
 mfxStatus CDecodingPipeline::RunDecoding()
 {
     mfxBitstream*       pBitstream = &m_mfxBS;
@@ -560,7 +564,7 @@ mfxStatus CDecodingPipeline::RunDecoding()
 	mfxFrameSurface1* pOutSurface = NULL;
 	IOFrameSurface *  pFreeSurf = NULL;
 
-    while (((sts == MFX_ERR_NONE) || (MFX_ERR_MORE_DATA == sts) || (MFX_ERR_MORE_SURFACE == sts)) )
+    while (((sts >= MFX_ERR_NONE) || (MFX_ERR_MORE_DATA == sts) || (MFX_ERR_MORE_SURFACE == sts)) )
 	{
         if (MFX_ERR_NONE != m_error) {
             msdk_printf(MSDK_STRING("DeliverOutput return error = %d\n"),m_error);
@@ -593,6 +597,7 @@ mfxStatus CDecodingPipeline::RunDecoding()
 			pFreeSurf = dequeFreeSurface();
             if (!pFreeSurf)
 			{
+				int n, m, l, k;
                 // we stuck with no free surface available, now we will sync...
                 mfxStatus sync_sts = syncOutSurface(MSDK_DEC_WAIT_INTERVAL);
                 
@@ -602,7 +607,11 @@ mfxStatus CDecodingPipeline::RunDecoding()
                     if (m_synced_count != m_output_count) {
 						sts = m_pDeliveredEvent->Wait(MSDK_DEC_WAIT_INTERVAL)?MFX_ERR_NONE:MFX_ERR_NOT_FOUND;
                     } else {
-                        sts = MFX_ERR_NOT_FOUND;
+						n = m_FreeQueue.size();
+						m = m_OutQueue.size();
+						l = m_UsedQueue.size();
+						k = m_SyncQueue.size();
+                      // sts = MFX_ERR_NOT_FOUND;
                     }
                     if (MFX_ERR_NOT_FOUND == sts) {
                         msdk_printf(MSDK_STRING("fatal: failed to find output surface, that's a bug!\n"));
@@ -637,6 +646,8 @@ mfxStatus CDecodingPipeline::RunDecoding()
 				case MFX_ERR_MORE_DATA:
 					sts = MFX_WRN_DEVICE_BUSY;
 					break;
+				case MFX_WRN_IN_EXECUTION:
+					break;
 				default:
 					sts = sync_sts;
 					break;
@@ -646,12 +657,12 @@ mfxStatus CDecodingPipeline::RunDecoding()
 
 		if (sts > MFX_ERR_NONE) {
 			// ignoring warnings...
-			if (syncPoint && pOutSurface) {
+			if (syncPoint) {
 				// output is available
 				sts = MFX_ERR_NONE;
 			} else {
 				// output is not available
-				sts = MFX_ERR_MORE_SURFACE;
+				//sts = MFX_ERR_MORE_SURFACE;
 			}
 		} else if ((MFX_ERR_MORE_DATA == sts) && pBitstream) {
 			continue;
@@ -683,7 +694,12 @@ mfxStatus CDecodingPipeline::RunDecoding()
 			IOFrameSurface * pSync = m_SurfaceMap[pOutSurface];
 			pSync->syncPoint = syncPoint;
 			m_SyncQueue.push(pSync);            
-        }
+        }else if (MFX_ERR_MORE_SURFACE == sts){
+			more_surf ++;
+				WinRTCSDK::AutoLock l (m_lock);
+			m_UsedQueue.push_back(pFreeSurf);
+
+		}
 
 
     } //while processing
