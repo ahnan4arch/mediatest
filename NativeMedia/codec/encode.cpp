@@ -426,38 +426,14 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU8 nArgNum, EncodeParams* p
     }
 
 
-    if (pParams->nQuality && (MFX_CODEC_JPEG != pParams->CodecId))
-    {
-        PrintHelp(strInput[0], MSDK_STRING("-q option is supported only for JPEG encoder"));
-        return MFX_ERR_UNSUPPORTED;
-    }
-
-    if ((pParams->nTargetUsage || pParams->nBitRate) && (MFX_CODEC_JPEG == pParams->CodecId))
-    {
-        PrintHelp(strInput[0], MSDK_STRING("-u and -b options are supported only for H.264, MPEG2 and MVC encoders. For JPEG encoder use -q"));
-        return MFX_ERR_UNSUPPORTED;
-    }
-
-    if (MFX_TARGETUSAGE_BEST_QUALITY != pParams->nTargetUsage && MFX_TARGETUSAGE_BEST_SPEED != pParams->nTargetUsage)
-    {
-        pParams->nTargetUsage = MFX_TARGETUSAGE_BALANCED;
-    }
+        
+	pParams->nTargetUsage = MFX_TARGETUSAGE_BALANCED;
 
     if (pParams->dFrameRate <= 0)
     {
         pParams->dFrameRate = 30;
     }
 
-    // if no destination picture width or height wasn't specified set it to the source picture size
-    if (pParams->nDstWidth == 0)
-    {
-        pParams->nDstWidth = pParams->nWidth;
-    }
-
-    if (pParams->nDstHeight == 0)
-    {
-        pParams->nDstHeight = pParams->nHeight;
-    }
 
     // calculate default bitrate based on the resolution (a parameter for encoder, so Dst resolution is used)
     if (pParams->nBitRate == 0)

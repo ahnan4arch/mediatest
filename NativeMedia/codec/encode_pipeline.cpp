@@ -247,26 +247,6 @@ mfxStatus sTask::Reset()
     return MFX_ERR_NONE;
 }
 
-mfxStatus CEncodingPipeline::AllocAndInitVppDoNotUse()
-{
-    m_VppDoNotUse.NumAlg = 4;
-
-    m_VppDoNotUse.AlgList = new mfxU32 [m_VppDoNotUse.NumAlg];
-    MSDK_CHECK_POINTER(m_VppDoNotUse.AlgList,  MFX_ERR_MEMORY_ALLOC);
-
-    m_VppDoNotUse.AlgList[0] = MFX_EXTBUFF_VPP_DENOISE; // turn off denoising (on by default)
-    m_VppDoNotUse.AlgList[1] = MFX_EXTBUFF_VPP_SCENE_ANALYSIS; // turn off scene analysis (on by default)
-    m_VppDoNotUse.AlgList[2] = MFX_EXTBUFF_VPP_DETAIL; // turn off detail enhancement (on by default)
-    m_VppDoNotUse.AlgList[3] = MFX_EXTBUFF_VPP_PROCAMP; // turn off processing amplified (on by default)
-
-    return MFX_ERR_NONE;
-
-} // CEncodingPipeline::AllocAndInitVppDoNotUse()
-
-void CEncodingPipeline::FreeVppDoNotUse()
-{
-    MSDK_SAFE_DELETE_ARRAY(m_VppDoNotUse.AlgList);
-}
 
 mfxStatus CEncodingPipeline::InitMfxEncParams(EncodeParams *pInParams)
 {
@@ -291,35 +271,19 @@ mfxStatus CEncodingPipeline::InitMfxEncParams(EncodeParams *pInParams)
 
 
     // specify memory type
-    if (D3D9_MEMORY == pInParams->memType || D3D11_MEMORY == pInParams->memType)
-    {
-        m_mfxEncParams.IOPattern = MFX_IOPATTERN_IN_VIDEO_MEMORY;
-    }
-    else
-    {
-        m_mfxEncParams.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
-    }
+    m_mfxEncParams.IOPattern = MFX_IOPATTERN_IN_VIDEO_MEMORY;
 
     // frame info parameters
     m_mfxEncParams.mfx.FrameInfo.FourCC       = MFX_FOURCC_NV12;
     m_mfxEncParams.mfx.FrameInfo.ChromaFormat = MFX_CHROMAFORMAT_YUV420;
-    m_mfxEncParams.mfx.FrameInfo.PicStruct    = pInParams->nPicStruct;
+    m_mfxEncParams.mfx.FrameInfo.PicStruct    = MFX_PICSTRUCT_PROGRESSIVE;
 
     // set frame size and crops
-    if(pInParams->CodecId==MFX_CODEC_HEVC )
-    {
-        // In case of HW HEVC decoder width and height must be aligned to 32 pixels. This limitation is planned to be removed in later versions of plugin
-        m_mfxEncParams.mfx.FrameInfo.Width  = MSDK_ALIGN32(pInParams->nDstWidth);
-        m_mfxEncParams.mfx.FrameInfo.Height = MSDK_ALIGN32(pInParams->nDstHeight);
-    }
-    else
-    {
-        // width must be a multiple of 16
-        // height must be a multiple of 16 in case of frame picture and a multiple of 32 in case of field picture
-        m_mfxEncParams.mfx.FrameInfo.Width  = MSDK_ALIGN16(pInParams->nDstWidth);
-        m_mfxEncParams.mfx.FrameInfo.Height = (MFX_PICSTRUCT_PROGRESSIVE == m_mfxEncParams.mfx.FrameInfo.PicStruct)?
-            MSDK_ALIGN16(pInParams->nDstHeight) : MSDK_ALIGN32(pInParams->nDstHeight);
-    }
+    // width must be a multiple of 16
+    // height must be a multiple of 16 in case of frame picture and a multiple of 32 in case of field picture
+    m_mfxEncParams.mfx.FrameInfo.Width  = MSDK_ALIGN16(pInParams->nDstWidth);
+    m_mfxEncParams.mfx.FrameInfo.Height = (MFX_PICSTRUCT_PROGRESSIVE == m_mfxEncParams.mfx.FrameInfo.PicStruct)?
+        MSDK_ALIGN16(pInParams->nDstHeight) : MSDK_ALIGN32(pInParams->nDstHeight);
 
     m_mfxEncParams.mfx.FrameInfo.CropX = 0;
     m_mfxEncParams.mfx.FrameInfo.CropY = 0;
@@ -336,31 +300,10 @@ mfxStatus CEncodingPipeline::InitMfxEncParams(EncodeParams *pInParams)
         m_EncExtParams.push_back((mfxExtBuffer *)&m_CodingOption2);
     }
 
-
-    // In case of HEVC when height and/or width divided with 8 but not divided with 16
-    // add extended parameter to increase performance
-    if ( ( !((m_mfxEncParams.mfx.FrameInfo.CropW & 15 ) ^ 8 ) ||
-           !((m_mfxEncParams.mfx.FrameInfo.CropH & 15 ) ^ 8 ) ) &&
-             (m_mfxEncParams.mfx.CodecId == MFX_CODEC_HEVC) )
-    {
-        m_ExtHEVCParam.PicWidthInLumaSamples = m_mfxEncParams.mfx.FrameInfo.CropW;
-        m_ExtHEVCParam.PicHeightInLumaSamples = m_mfxEncParams.mfx.FrameInfo.CropH;
-        m_EncExtParams.push_back((mfxExtBuffer*)&m_ExtHEVCParam);
-    }
-
     if (!m_EncExtParams.empty())
     {
         m_mfxEncParams.ExtParam = &m_EncExtParams[0]; // vector is stored linearly in memory
         m_mfxEncParams.NumExtParam = (mfxU16)m_EncExtParams.size();
-    }
-
-    // JPEG encoder settings overlap with other encoders settings in mfxInfoMFX structure
-    if (MFX_CODEC_JPEG == pInParams->CodecId)
-    {
-        m_mfxEncParams.mfx.Interleaved = 1;
-        m_mfxEncParams.mfx.Quality = pInParams->nQuality;
-        m_mfxEncParams.mfx.RestartInterval = 0;
-        MSDK_ZERO_MEMORY(m_mfxEncParams.mfx.reserved5);
     }
 
     m_mfxEncParams.AsyncDepth = pInParams->nAsyncDepth;
@@ -368,79 +311,24 @@ mfxStatus CEncodingPipeline::InitMfxEncParams(EncodeParams *pInParams)
     return MFX_ERR_NONE;
 }
 
-mfxStatus CEncodingPipeline::InitMfxVppParams(EncodeParams *pInParams)
-{
-    MSDK_CHECK_POINTER(pInParams,  MFX_ERR_NULL_PTR);
-
-    // specify memory type
-    if (D3D9_MEMORY == pInParams->memType || D3D11_MEMORY == pInParams->memType)
-    {
-        m_mfxVppParams.IOPattern = MFX_IOPATTERN_IN_VIDEO_MEMORY | MFX_IOPATTERN_OUT_VIDEO_MEMORY;
-    }
-    else
-    {
-        m_mfxVppParams.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY | MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
-    }
-
-    // input frame info
-    m_mfxVppParams.vpp.In.FourCC    = MFX_FOURCC_NV12;
-    m_mfxVppParams.vpp.In.PicStruct = pInParams->nPicStruct;;
-    ConvertFrameRate(pInParams->dFrameRate, &m_mfxVppParams.vpp.In.FrameRateExtN, &m_mfxVppParams.vpp.In.FrameRateExtD);
-
-    // width must be a multiple of 16
-    // height must be a multiple of 16 in case of frame picture and a multiple of 32 in case of field picture
-    m_mfxVppParams.vpp.In.Width     = MSDK_ALIGN16(pInParams->nWidth);
-    m_mfxVppParams.vpp.In.Height    = (MFX_PICSTRUCT_PROGRESSIVE == m_mfxVppParams.vpp.In.PicStruct)?
-        MSDK_ALIGN16(pInParams->nHeight) : MSDK_ALIGN32(pInParams->nHeight);
-
-    // set crops in input mfxFrameInfo for correct work of file reader
-    // VPP itself ignores crops at initialization
-    m_mfxVppParams.vpp.In.CropW = pInParams->nWidth;
-    m_mfxVppParams.vpp.In.CropH = pInParams->nHeight;
-
-    // fill output frame info
-    MSDK_MEMCPY_VAR(m_mfxVppParams.vpp.Out,&m_mfxVppParams.vpp.In, sizeof(mfxFrameInfo));
-
-    // only resizing is supported
-    m_mfxVppParams.vpp.Out.Width = MSDK_ALIGN16(pInParams->nDstWidth);
-    m_mfxVppParams.vpp.Out.Height = (MFX_PICSTRUCT_PROGRESSIVE == m_mfxVppParams.vpp.Out.PicStruct)?
-        MSDK_ALIGN16(pInParams->nDstHeight) : MSDK_ALIGN32(pInParams->nDstHeight);
-
-    // configure and attach external parameters
-    AllocAndInitVppDoNotUse();
-    m_VppExtParams.push_back((mfxExtBuffer *)&m_VppDoNotUse);
-
-
-    m_mfxVppParams.ExtParam = &m_VppExtParams[0]; // vector is stored linearly in memory
-    m_mfxVppParams.NumExtParam = (mfxU16)m_VppExtParams.size();
-
-    m_mfxVppParams.AsyncDepth = pInParams->nAsyncDepth;
-
-    return MFX_ERR_NONE;
-}
-
-
 mfxStatus CEncodingPipeline::AllocFrames()
 {
-    MSDK_CHECK_POINTER(GetFirstEncoder(), MFX_ERR_NOT_INITIALIZED);
+    MSDK_CHECK_POINTER(m_pmfxENC, MFX_ERR_NOT_INITIALIZED);
 
     mfxStatus sts = MFX_ERR_NONE;
     mfxFrameAllocRequest EncRequest;
-    mfxFrameAllocRequest VppRequest[2];
 
     mfxU16 nEncSurfNum = 0; // number of surfaces for encoder
     mfxU16 nVppSurfNum = 0; // number of surfaces for vpp
 
     MSDK_ZERO_MEMORY(EncRequest);
-    MSDK_ZERO_MEMORY(VppRequest[0]);
-    MSDK_ZERO_MEMORY(VppRequest[1]);
 
     // Calculate the number of surfaces for components.
     // QueryIOSurf functions tell how many surfaces are required to produce at least 1 output.
     // To achieve better performance we provide extra surfaces.
     // 1 extra surface at input allows to get 1 extra output.
 
-    sts = GetFirstEncoder()->QueryIOSurf(&m_mfxEncParams, &EncRequest);
+    sts = m_pmfxENC->QueryIOSurf(&m_mfxEncParams, &EncRequest);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     if (EncRequest.NumFrameSuggested < m_mfxEncParams.AsyncDepth)
@@ -449,39 +337,14 @@ mfxStatus CEncodingPipeline::AllocFrames()
     // The number of surfaces shared by vpp output and encode input.
     nEncSurfNum = EncRequest.NumFrameSuggested;
 
-    if (m_pmfxVPP)
-    {
-        // VppRequest[0] for input frames request, VppRequest[1] for output frames request
-        sts = m_pmfxVPP->QueryIOSurf(&m_mfxVppParams, VppRequest);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-        // The number of surfaces for vpp input - so that vpp can work at async depth = m_nAsyncDepth
-        nVppSurfNum = VppRequest[0].NumFrameSuggested;
-        // If surfaces are shared by 2 components, c1 and c2. NumSurf = c1_out + c2_in - AsyncDepth + 1
-        nEncSurfNum += nVppSurfNum - m_mfxEncParams.AsyncDepth + 1;
-    }
 
     // prepare allocation requests
     EncRequest.NumFrameSuggested = EncRequest.NumFrameMin = nEncSurfNum;
     MSDK_MEMCPY_VAR(EncRequest.Info, &(m_mfxEncParams.mfx.FrameInfo), sizeof(mfxFrameInfo));
-    if (m_pmfxVPP)
-    {
-        EncRequest.Type |= MFX_MEMTYPE_FROM_VPPOUT; // surfaces are shared between vpp output and encode input
-    }
 
     // alloc frames for encoder
     sts = m_pMFXAllocator->Alloc(m_pMFXAllocator->pthis, &EncRequest, &m_EncResponse);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-    // alloc frames for vpp if vpp is enabled
-    if (m_pmfxVPP)
-    {
-        VppRequest[0].NumFrameSuggested = VppRequest[0].NumFrameMin = nVppSurfNum;
-        MSDK_MEMCPY_VAR(VppRequest[0].Info, &(m_mfxVppParams.mfx.FrameInfo), sizeof(mfxFrameInfo));
-
-        sts = m_pMFXAllocator->Alloc(m_pMFXAllocator->pthis, &(VppRequest[0]), &m_VppResponse);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-    }
 
     // prepare mfxFrameSurface1 array for encoder
     m_pEncSurfaces = new mfxFrameSurface1 [m_EncResponse.NumFrameActual];
@@ -491,142 +354,32 @@ mfxStatus CEncodingPipeline::AllocFrames()
     {
         memset(&(m_pEncSurfaces[i]), 0, sizeof(mfxFrameSurface1));
         MSDK_MEMCPY_VAR(m_pEncSurfaces[i].Info, &(m_mfxEncParams.mfx.FrameInfo), sizeof(mfxFrameInfo));
-
-        if (m_bExternalAlloc)
-        {
-            m_pEncSurfaces[i].Data.MemId = m_EncResponse.mids[i];
-        }
-        else
-        {
-            // get YUV pointers
-            sts = m_pMFXAllocator->Lock(m_pMFXAllocator->pthis, m_EncResponse.mids[i], &(m_pEncSurfaces[i].Data));
-            MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-        }
-    }
-
-    // prepare mfxFrameSurface1 array for vpp if vpp is enabled
-    if (m_pmfxVPP)
-    {
-        m_pVppSurfaces = new mfxFrameSurface1 [m_VppResponse.NumFrameActual];
-        MSDK_CHECK_POINTER(m_pVppSurfaces, MFX_ERR_MEMORY_ALLOC);
-
-        for (int i = 0; i < m_VppResponse.NumFrameActual; i++)
-        {
-            MSDK_ZERO_MEMORY(m_pVppSurfaces[i]);
-            MSDK_MEMCPY_VAR(m_pVppSurfaces[i].Info, &(m_mfxVppParams.mfx.FrameInfo), sizeof(mfxFrameInfo));
-
-            if (m_bExternalAlloc)
-            {
-                m_pVppSurfaces[i].Data.MemId = m_VppResponse.mids[i];
-            }
-            else
-            {
-                sts = m_pMFXAllocator->Lock(m_pMFXAllocator->pthis, m_VppResponse.mids[i], &(m_pVppSurfaces[i].Data));
-                MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-            }
-        }
-    }
-
-    return MFX_ERR_NONE;
-}
-
-mfxStatus CEncodingPipeline::CreateAllocator()
-{
-    mfxStatus sts = MFX_ERR_NONE;
-
-    if (D3D9_MEMORY == m_memType || D3D11_MEMORY == m_memType)
-    {
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-        mfxHDL hdl = NULL;
-        mfxHandleType hdl_t =
-        #if MFX_D3D11_SUPPORT
-            D3D11_MEMORY == m_memType ? MFX_HANDLE_D3D11_DEVICE :
-        #endif // #if MFX_D3D11_SUPPORT
-            MFX_HANDLE_D3D9_DEVICE_MANAGER;
-
-//        sts = m_hwdev->GetHandle(hdl_t, &hdl);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-        // handle is needed for HW library only
-        mfxIMPL impl = 0;
-        m_mfxSession.QueryIMPL(&impl);
-        if (impl != MFX_IMPL_SOFTWARE)
-        {
-            sts = m_mfxSession.SetHandle(hdl_t, hdl);
-            MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-        }
-
-        // create D3D allocator
-        {
-            m_pMFXAllocator = new D3DFrameAllocator;
-            MSDK_CHECK_POINTER(m_pMFXAllocator, MFX_ERR_MEMORY_ALLOC);
-
-        }
-
-        /* In case of video memory we must provide MediaSDK with external allocator
-        thus we demonstrate "external allocator" usage model.
-        Call SetAllocator to pass allocator to Media SDK */
-        sts = m_mfxSession.SetFrameAllocator(m_pMFXAllocator);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-        m_bExternalAlloc = true;
+		m_pEncSurfaces[i].Data.MemId = m_EncResponse.mids[i];
 
     }
-    else
-    {
-        // create system memory allocator
-        m_pMFXAllocator = new SysMemFrameAllocator;
-        MSDK_CHECK_POINTER(m_pMFXAllocator, MFX_ERR_MEMORY_ALLOC);
 
-        /* In case of system memory we demonstrate "no external allocator" usage model.
-        We don't call SetAllocator, Media SDK uses internal allocator.
-        We use system memory allocator simply as a memory manager for application*/
-    }
-
-    // initialize memory allocator
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-    return MFX_ERR_NONE;
+	return MFX_ERR_NONE;
 }
 
 void CEncodingPipeline::DeleteFrames()
 {
     // delete surfaces array
     MSDK_SAFE_DELETE_ARRAY(m_pEncSurfaces);
-    MSDK_SAFE_DELETE_ARRAY(m_pVppSurfaces);
 
     // delete frames
     if (m_pMFXAllocator)
     {
         m_pMFXAllocator->Free(m_pMFXAllocator->pthis, &m_EncResponse);
-        m_pMFXAllocator->Free(m_pMFXAllocator->pthis, &m_VppResponse);
     }
-}
-
-void CEncodingPipeline::DeleteAllocator()
-{
-    // delete allocator
-    MSDK_SAFE_DELETE(m_pMFXAllocator);
-
 }
 
 CEncodingPipeline::CEncodingPipeline()
 {
     m_pmfxENC = NULL;
-    m_pmfxVPP = NULL;
     m_pMFXAllocator = NULL;
-    m_memType = SYSTEM_MEMORY;
-    m_bExternalAlloc = false;
     m_pEncSurfaces = NULL;
-    m_pVppSurfaces = NULL;
-
 
     m_FileWriters.first = m_FileWriters.second = NULL;
-
-    MSDK_ZERO_MEMORY(m_VppDoNotUse);
-    m_VppDoNotUse.Header.BufferId = MFX_EXTBUFF_VPP_DONOTUSE;
-    m_VppDoNotUse.Header.BufferSz = sizeof(m_VppDoNotUse);
 
     MSDK_ZERO_MEMORY(m_CodingOption);
     m_CodingOption.Header.BufferId = MFX_EXTBUFF_CODING_OPTION;
@@ -636,19 +389,13 @@ CEncodingPipeline::CEncodingPipeline()
     m_CodingOption2.Header.BufferId = MFX_EXTBUFF_CODING_OPTION2;
     m_CodingOption2.Header.BufferSz = sizeof(m_CodingOption2);
 
-    MSDK_ZERO_MEMORY(m_ExtHEVCParam);
-    m_ExtHEVCParam.Header.BufferId = MFX_EXTBUFF_HEVC_PARAM;
-    m_ExtHEVCParam.Header.BufferSz = sizeof(m_ExtHEVCParam);
-
 #if D3D_SURFACES_SUPPORT
     m_hwdev = NULL;
 #endif
 
     MSDK_ZERO_MEMORY(m_mfxEncParams);
-    MSDK_ZERO_MEMORY(m_mfxVppParams);
 
     MSDK_ZERO_MEMORY(m_EncResponse);
-    MSDK_ZERO_MEMORY(m_VppResponse);
 }
 
 CEncodingPipeline::~CEncodingPipeline()

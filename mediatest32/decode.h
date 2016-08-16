@@ -87,7 +87,7 @@ public:
 
 		params_.bUseHWLib = true;
 		params_.videoType = MFX_CODEC_AVC;
-		params_.nAsyncDepth = 4;
+		params_.nAsyncDepth = 5;
 		params_.nMaxFPS=40;
 		wcscpy_s(params_.strSrcFile, L"d:\\test.h264");
 		wcscpy_s(params_.strDstFile, L"d:\\test.nv12");

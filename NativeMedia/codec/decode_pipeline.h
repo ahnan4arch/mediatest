@@ -36,8 +36,9 @@ struct IOFrameSurface
 		::memset(this, 0, sizeof (IOFrameSurface));
 	}
     mfxFrameSurface1  frame;
-    msdk_tick submit;  // the time when submitting to codec
-	mfxSyncPoint syncPoint;
+    msdk_tick         submit;  // the time when submitting to codec
+	mfxU16            renderLock;  // locked for render
+	mfxSyncPoint      syncPoint;
 };
 
 struct DecodeParams
@@ -131,7 +132,7 @@ protected: // variables
 	std::queue<IOFrameSurface*> m_OutQueue;
 	std::queue<IOFrameSurface*> m_FreeQueue;
 	std::queue<IOFrameSurface*> m_SyncQueue;
-	std::vector<IOFrameSurface*> m_UsedQueue; // locked by decoder
+	std::vector<IOFrameSurface*> m_UsedQueue;
 	std::map<mfxFrameSurface1 *, IOFrameSurface*> m_SurfaceMap; // map mfxFrameSurface1 * to IOFrameSurface*
 	WinRTCSDK::Mutex         m_lock;
 
@@ -140,7 +141,7 @@ protected: // variables
 
 	Win32Semaphore*         m_pDeliverOutputSemaphore; // to access to DeliverOutput method
 	Win32Event*             m_pDeliveredEvent; // to signal when output surfaces will be processed
-    mfxStatus               m_error; // error returned by DeliverOutput method
+    mfxStatus               m_render_error; // error returned by DeliverOutput method
     bool                    m_bStopDeliverLoop;
 
     bool                    m_bPrintLatency;
@@ -152,6 +153,7 @@ protected: // variables
 
 	MP::IDXVAVideoRender*   m_pRender;
 	DecodeParams            m_Params;
+	bool                    m_stopFlag;
 private:
     CDecodingPipeline(const CDecodingPipeline&);
     void operator=(const CDecodingPipeline&);

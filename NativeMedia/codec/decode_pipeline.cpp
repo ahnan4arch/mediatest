@@ -29,13 +29,13 @@ CDecodingPipeline::CDecodingPipeline()
 
     m_pDeliverOutputSemaphore = NULL;
     m_pDeliveredEvent = NULL;
-    m_error = MFX_ERR_NONE;
+    m_render_error = MFX_ERR_NONE;
     m_bStopDeliverLoop = false;
 
     m_bPrintLatency = false;
 
     m_nMaxFps = 0;
-
+	m_stopFlag = false;
 
     m_vLatency.reserve(1000); // reserve some space to reduce dynamic reallocation impact on pipeline execution
 
@@ -53,7 +53,7 @@ mfxStatus CDecodingPipeline::Init(DecodeParams *pParams, MP::IDXVAVideoRender* p
 
 	// va interface
 	m_pRender = pRender;
-
+	m_stopFlag = false;
     mfxStatus sts = MFX_ERR_NONE;
 
     // prepare input stream file reader
@@ -87,17 +87,21 @@ mfxStatus CDecodingPipeline::Init(DecodeParams *pParams, MP::IDXVAVideoRender* p
     initPar.GPUCopy = MFX_GPUCOPY_DEFAULT;
 
     // Init session
-    if (m_Params.bUseHWLib) {
+    if (m_Params.bUseHWLib) 
+	{
         // try searching on all display adapters
         initPar.Implementation = MFX_IMPL_HARDWARE_ANY;
         initPar.Implementation |= MFX_IMPL_VIA_D3D9;
         sts = m_mfxSession.InitEx(initPar);
         // MSDK API version may not support multiple adapters - then try initialize on the default
-        if (MFX_ERR_NONE != sts) {
+        if (MFX_ERR_NONE != sts) 
+		{
             initPar.Implementation = (initPar.Implementation & !MFX_IMPL_HARDWARE_ANY) | MFX_IMPL_HARDWARE;
             sts = m_mfxSession.InitEx(initPar);
         }
-    } else {
+    } 
+	else 
+	{
         initPar.Implementation = MFX_IMPL_SOFTWARE;
         sts = m_mfxSession.InitEx(initPar);
     }
@@ -298,11 +302,10 @@ void CDecodingPipeline::DeleteFrames()
 	while( m_OutQueue.empty() == false) m_OutQueue.pop();
 	while( m_FreeQueue.empty() == false) m_FreeQueue.pop();
 	while( m_SyncQueue.empty() == false) m_SyncQueue.pop();
-	m_UsedQueue.clear();
 	m_SurfaceMap.clear();
 
 	// delete IO pool
-	delete m_IOSurfacePool;
+	delete []m_IOSurfacePool;
 
     // delete frames
 	mfxFrameAllocator* pAlloc = (mfxFrameAllocator*) m_pRender->getFrameAllocator();
@@ -381,20 +384,20 @@ mfxStatus CDecodingPipeline::DeliverLoop(void)
         if (m_bStopDeliverLoop) {
             continue;
         }
-        if (MFX_ERR_NONE != m_error) {
+        if (MFX_ERR_NONE != m_render_error) {
             continue;
         }
 
 		IOFrameSurface *  pSurf = dequeOutSurface();
 
 		if (!pSurf) {
-            m_error = MFX_ERR_NULL_PTR;
+            m_render_error = MFX_ERR_NULL_PTR;
             continue;
         }
 
         mfxFrameSurface1* frame = &(pSurf->frame);
 
-        m_error = DeliverOutput(frame);
+        m_render_error = DeliverOutput(frame);
 
 		returnOutSurface(pSurf);
 
@@ -458,12 +461,7 @@ void CDecodingPipeline::enqueueOutSurface(IOFrameSurface * pSurf)
 
 void CDecodingPipeline::returnOutSurface(IOFrameSurface * pSurf)
 {
-	WinRTCSDK::AutoLock l (m_lock);
-	if ( pSurf->frame.Data.Locked ==0 ){// locked by decoder
-		m_FreeQueue.push(pSurf);
-	}else{
-		m_UsedQueue.push_back(pSurf);
-	}
+	msdk_atomic_dec16(&(pSurf->renderLock));
 }
 
 IOFrameSurface * CDecodingPipeline::dequeFreeSurface()
@@ -482,15 +480,19 @@ void CDecodingPipeline::recycleUsedSurface()
 {
 	WinRTCSDK::AutoLock l (m_lock);
 	std::vector<IOFrameSurface*>::iterator i = m_UsedQueue.begin();
-	while (i != m_UsedQueue.end()){
-		if ( (*i)->frame.Data.Locked ==0 ){ // freed by decoder
+	
+	while ( i!= m_UsedQueue.end() )
+	{
+		if ( (*i)->renderLock == 0 && 
+			(*i)->frame.Data.Locked==0)
+		{
 			m_FreeQueue.push(*i);
 			i = m_UsedQueue.erase(i);
-			continue;
-		}else{
+		} else {
 			i++;
 		}
 	}
+	
 }
 
 mfxStatus  CDecodingPipeline::syncOutSurface ( int waitTime)
@@ -538,7 +540,6 @@ mfxStatus  CDecodingPipeline::syncOutSurface ( int waitTime)
 	return sts;
 }
 
-int more_surf =0;
 mfxStatus CDecodingPipeline::RunDecoding()
 {
     mfxBitstream*       pBitstream = &m_mfxBS;
@@ -548,6 +549,8 @@ mfxStatus CDecodingPipeline::RunDecoding()
     time_t start_time = time(0);
     MSDKThread * pDeliverThread = NULL;
 
+	// for UT
+	int more_surf =0;
 
     m_pDeliverOutputSemaphore = new Win32Semaphore(sts);
     m_pDeliveredEvent = new Win32Event(TRUE);
@@ -566,12 +569,14 @@ mfxStatus CDecodingPipeline::RunDecoding()
 
     while (((sts >= MFX_ERR_NONE) || (MFX_ERR_MORE_DATA == sts) || (MFX_ERR_MORE_SURFACE == sts)) )
 	{
-        if (MFX_ERR_NONE != m_error) {
-            msdk_printf(MSDK_STRING("DeliverOutput return error = %d\n"),m_error);
+        if (MFX_ERR_NONE != m_render_error)
+		{
+            msdk_printf(MSDK_STRING("DeliverOutput return error = %d\n"),m_render_error);
             break;
         }
 
-		if (m_nFrames < m_output_count){
+		if (m_nFrames < m_output_count || m_stopFlag)
+		{
 			break;
 		}
 
@@ -580,7 +585,6 @@ mfxStatus CDecodingPipeline::RunDecoding()
 		{
             CAutoTimer timer_fread(m_tick_fread);
             mfxStatus status_read = m_FileReader->ReadNextFrame(pBitstream); // read more data to input bit stream
-
             if (MFX_ERR_MORE_DATA == status_read) {
 				pBitstream = NULL;
             } else if (MFX_ERR_NONE != status_read) {
@@ -592,7 +596,7 @@ mfxStatus CDecodingPipeline::RunDecoding()
 		recycleUsedSurface();
 
 		// schedule more working frame
-        if ((MFX_ERR_NONE == sts) || (MFX_ERR_MORE_SURFACE == sts))
+        if ((MFX_ERR_NONE == sts) || (MFX_ERR_MORE_SURFACE == sts)||(MFX_ERR_MORE_DATA == sts))
 		{
 			pFreeSurf = dequeFreeSurface();
             if (!pFreeSurf)
@@ -609,9 +613,8 @@ mfxStatus CDecodingPipeline::RunDecoding()
                     } else {
 						n = m_FreeQueue.size();
 						m = m_OutQueue.size();
-						l = m_UsedQueue.size();
 						k = m_SyncQueue.size();
-                      // sts = MFX_ERR_NOT_FOUND;
+                      //  sts = MFX_ERR_NOT_FOUND;
                     }
                     if (MFX_ERR_NOT_FOUND == sts) {
                         msdk_printf(MSDK_STRING("fatal: failed to find output surface, that's a bug!\n"));
@@ -662,11 +665,9 @@ mfxStatus CDecodingPipeline::RunDecoding()
 				sts = MFX_ERR_NONE;
 			} else {
 				// output is not available
-				//sts = MFX_ERR_MORE_SURFACE;
+				sts = MFX_ERR_MORE_SURFACE;
 			}
-		} else if ((MFX_ERR_MORE_DATA == sts) && pBitstream) {
-			continue;
-		} else if ((MFX_ERR_MORE_DATA == sts) && !pBitstream) {
+		}  else if ((MFX_ERR_MORE_DATA == sts) && !pBitstream) {
 			// that's it - we reached end of stream; now we need to render bufferred data...
 			do {
 				sts = syncOutSurface(MSDK_DEC_WAIT_INTERVAL);
@@ -687,19 +688,21 @@ mfxStatus CDecodingPipeline::RunDecoding()
 			sts = MFX_ERR_NONE;
 			continue;
 		}
-        
-		// has one syncpoint
-        if (MFX_ERR_NONE == sts) {
 
+		if ((MFX_ERR_NONE == sts) || (MFX_ERR_MORE_DATA == sts) || (MFX_ERR_MORE_SURFACE == sts)) 
+		{
+			m_UsedQueue.push_back(pFreeSurf);
+        }
+
+		// has one syncpoint
+        if (MFX_ERR_NONE == sts) 
+		{
 			IOFrameSurface * pSync = m_SurfaceMap[pOutSurface];
 			pSync->syncPoint = syncPoint;
+			// lock for rendering
+			msdk_atomic_inc16(&(pSync->renderLock));
 			m_SyncQueue.push(pSync);            
-        }else if (MFX_ERR_MORE_SURFACE == sts){
-			more_surf ++;
-				WinRTCSDK::AutoLock l (m_lock);
-			m_UsedQueue.push_back(pFreeSurf);
-
-		}
+        }
 
 
     } //while processing
