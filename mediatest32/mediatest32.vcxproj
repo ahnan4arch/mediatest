@@ -100,11 +100,9 @@
     <ClCompile Include="..\NativeMedia\codec\avc_spl.cpp" />
     <ClCompile Include="..\NativeMedia\codec\base_allocator.cpp" />
     <ClCompile Include="..\NativeMedia\codec\d3d_allocator.cpp" />
-    <ClCompile Include="..\NativeMedia\codec\encode.cpp" />
     <ClCompile Include="..\NativeMedia\codec\decode_pipeline.cpp" />
     <ClCompile Include="..\NativeMedia\codec\encode_pipeline.cpp" />
     <ClCompile Include="..\NativeMedia\codec\codec_utils.cpp" />
-    <ClCompile Include="..\NativeMedia\codec\sysmem_allocator.cpp" />
     <ClCompile Include="..\NativeMedia\D3D9Renderer.cpp" />
     <ClCompile Include="..\NativeMedia\D3DPsVideoProcessor.cpp" />
     <ClCompile Include="..\NativeMedia\GlobalFun.cpp" />
@@ -118,7 +116,7 @@
     </ClCompile>
     <ClCompile Include="..\NativeMedia\VideoHWND.cpp" />
     <ClCompile Include="..\NativeMedia\VideoManager.cpp" />
-    <ClCompile Include="decode.h" />
+    <ClCompile Include="decode_test.h" />
     <ClCompile Include="fakeimage.cpp" />
     <ClCompile Include="mediatest32.cpp" />
   </ItemGroup>
@@ -151,7 +149,6 @@
     <ClInclude Include="..\NativeMedia\codec\encode_pipeline.h" />
     <ClInclude Include="..\NativeMedia\codec\codec_defs.h" />
     <ClInclude Include="..\NativeMedia\codec\codec_utils.h" />
-    <ClInclude Include="..\NativeMedia\codec\sysmem_allocator.h" />
     <ClInclude Include="..\NativeMedia\codec\sys_primitives.h" />
     <ClInclude Include="..\NativeMedia\codec\time_statistics.h" />
     <ClInclude Include="..\NativeMedia\ComPtrDefs.h" />
@@ -172,6 +169,7 @@
     <ClInclude Include="..\NativeMedia\VideoManager.h" />
     <ClInclude Include="..\NativeMedia\Win32Event.h" />
     <ClInclude Include="..\NativeMedia\WinRTCSDKTypes.h" />
+    <ClInclude Include="encode_test.h" />
     <ClInclude Include="va_interface.h" />
   </ItemGroup>
   <ItemGroup>

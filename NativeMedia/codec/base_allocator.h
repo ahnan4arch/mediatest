@@ -143,21 +143,4 @@ protected:
     };
 };
 
-class MFXBufferAllocator : public mfxBufferAllocator
-{
-public:
-    MFXBufferAllocator();
-    virtual ~MFXBufferAllocator();
-
-    virtual mfxStatus AllocBuffer(mfxU32 nbytes, mfxU16 type, mfxMemId *mid) = 0;
-    virtual mfxStatus LockBuffer(mfxMemId mid, mfxU8 **ptr) = 0;
-    virtual mfxStatus UnlockBuffer(mfxMemId mid) = 0;
-    virtual mfxStatus FreeBuffer(mfxMemId mid) = 0;
-
-private:
-    static mfxStatus MFX_CDECL  Alloc_(mfxHDL pthis, mfxU32 nbytes, mfxU16 type, mfxMemId *mid);
-    static mfxStatus MFX_CDECL  Lock_(mfxHDL pthis, mfxMemId mid, mfxU8 **ptr);
-    static mfxStatus MFX_CDECL  Unlock_(mfxHDL pthis, mfxMemId mid);
-    static mfxStatus MFX_CDECL  Free_(mfxHDL pthis, mfxMemId mid);
-};
 

@@ -6,7 +6,7 @@
 
 #include "Looper.h"
 #include "D3D9Renderer.h"
-#include "decode.h"
+#include "decode_test.h"
 
 using namespace WinRTCSDK;
 using namespace MP;

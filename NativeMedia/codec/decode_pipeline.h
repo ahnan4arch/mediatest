@@ -1,25 +1,21 @@
 #pragma once
 
 #pragma warning(disable : 4201)
-#include <d3d9.h>
-#include <dxva2api.h>
 
 #include <algorithm>
 #include <queue>
 #include <vector>
 #include <map>
-
 #include <memory>
 
 #include "autolock.h"
 #include "win32event.h"
-#include "codec_defs.h"
+
+// interface for MP
 #include "va_interface.h"
 
+#include "codec_defs.h"
 #include "codec_utils.h"
-#include "base_allocator.h"
-#include "d3d_allocator.h"
-
 #include "mfxmvc.h"
 #include "mfxjpeg.h"
 #include "mfxplugin.h"

@@ -65,9 +65,6 @@
     <ClCompile Include="..\NativeMedia\codec\d3d_allocator.cpp">
       <Filter>codec</Filter>
     </ClCompile>
-    <ClCompile Include="..\NativeMedia\codec\sysmem_allocator.cpp">
-      <Filter>codec</Filter>
-    </ClCompile>
     <ClCompile Include="..\NativeMedia\codec\avc_bitstream.cpp">
       <Filter>codec</Filter>
     </ClCompile>
@@ -84,9 +81,6 @@
       <Filter>codec</Filter>
     </ClCompile>
     <ClCompile Include="..\NativeMedia\codec\encode_pipeline.cpp">
-      <Filter>codec</Filter>
-    </ClCompile>
-    <ClCompile Include="..\NativeMedia\codec\encode.cpp">
       <Filter>codec</Filter>
     </ClCompile>
     <ClCompile Include="..\NativeMedia\audio\AudioManager.cpp">
@@ -113,10 +107,10 @@
     <ClCompile Include="..\NativeMedia\audio\WASAPIRenderer.cpp">
       <Filter>audio</Filter>
     </ClCompile>
-    <ClCompile Include="decode.h">
+    <ClCompile Include="fakeimage.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="fakeimage.cpp">
+    <ClCompile Include="decode_test.h">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -193,9 +187,6 @@
     <ClInclude Include="..\NativeMedia\codec\d3d_allocator.h">
       <Filter>codec</Filter>
     </ClInclude>
-    <ClInclude Include="..\NativeMedia\codec\sysmem_allocator.h">
-      <Filter>codec</Filter>
-    </ClInclude>
     <ClInclude Include="..\NativeMedia\codec\avc_bitstream.h">
       <Filter>codec</Filter>
     </ClInclude>
@@ -270,6 +261,9 @@
     </ClInclude>
     <ClInclude Include="..\NativeMedia\audio\WavHelper.h">
       <Filter>audio</Filter>
+    </ClInclude>
+    <ClInclude Include="encode_test.h">
+      <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

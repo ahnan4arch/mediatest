@@ -2,23 +2,7 @@
 #include "stdafx.h"
 
 #include "encode_pipeline.h"
-#include "sysmem_allocator.h"
 
-#include "d3d_allocator.h"
-
-/* obtain the clock tick of an uninterrupted master clock */
-msdk_tick time_get_tick(void)
-{
-    return msdk_time_get_tick();
-
-} 
-
-/* obtain the clock resolution */
-msdk_tick time_get_frequency(void)
-{
-    return msdk_time_get_frequency();
-
-} 
 
 CEncTaskPool::CEncTaskPool()
 {
@@ -33,7 +17,7 @@ CEncTaskPool::~CEncTaskPool()
     Close();
 }
 
-mfxStatus CEncTaskPool::Init(MFXVideoSession* pmfxSession, CSmplBitstreamWriter* pWriter, mfxU32 nPoolSize, mfxU32 nBufferSize, CSmplBitstreamWriter *pOtherWriter)
+mfxStatus CEncTaskPool::Init(MFXVideoSession* pmfxSession, CSmplBitstreamWriter* pWriter, mfxU32 nPoolSize, mfxU32 nBufferSize )
 {
     MSDK_CHECK_POINTER(pmfxSession, MFX_ERR_NULL_PTR);
     MSDK_CHECK_POINTER(pWriter, MFX_ERR_NULL_PTR);
@@ -41,9 +25,6 @@ mfxStatus CEncTaskPool::Init(MFXVideoSession* pmfxSession, CSmplBitstreamWriter*
     MSDK_CHECK_ERROR(nPoolSize, 0, MFX_ERR_UNDEFINED_BEHAVIOR);
     MSDK_CHECK_ERROR(nBufferSize, 0, MFX_ERR_UNDEFINED_BEHAVIOR);
 
-    // nPoolSize must be even in case of 2 output bitstreams
-    if (pOtherWriter && (0 != nPoolSize % 2))
-        return MFX_ERR_UNDEFINED_BEHAVIOR;
 
     m_pmfxSession = pmfxSession;
     m_nPoolSize = nPoolSize;
@@ -52,23 +33,10 @@ mfxStatus CEncTaskPool::Init(MFXVideoSession* pmfxSession, CSmplBitstreamWriter*
     MSDK_CHECK_POINTER(m_pTasks, MFX_ERR_MEMORY_ALLOC);
 
     mfxStatus sts = MFX_ERR_NONE;
-
-    if (pOtherWriter) // 2 bitstreams on output
+    for (mfxU32 i = 0; i < m_nPoolSize; i++)
     {
-        for (mfxU32 i = 0; i < m_nPoolSize; i+=2)
-        {
-            sts = m_pTasks[i+0].Init(nBufferSize, pWriter);
-            sts = m_pTasks[i+1].Init(nBufferSize, pOtherWriter);
-            MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-        }
-    }
-    else
-    {
-        for (mfxU32 i = 0; i < m_nPoolSize; i++)
-        {
-            sts = m_pTasks[i].Init(nBufferSize, pWriter);
-            MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-        }
+        sts = m_pTasks[i].Init(nBufferSize, pWriter);
+        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
     }
 
     return MFX_ERR_NONE;
@@ -103,25 +71,6 @@ mfxStatus CEncTaskPool::SynchronizeFirstTask()
             {
                 m_nTaskBufferStart = (m_nTaskBufferStart + 1) % m_nPoolSize;
                 if (NULL != m_pTasks[m_nTaskBufferStart].EncSyncP)
-                {
-                    break;
-                }
-            }
-        }
-        else if (MFX_ERR_ABORTED == sts)
-        {
-            while (!m_pTasks[m_nTaskBufferStart].DependentVppTasks.empty())
-            {
-                // find out if the error occurred in a VPP task to perform recovery procedure if applicable
-                sts = m_pmfxSession->SyncOperation(*m_pTasks[m_nTaskBufferStart].DependentVppTasks.begin(), 0);
-
-                if (MFX_ERR_NONE == sts)
-                {
-                    m_pTasks[m_nTaskBufferStart].DependentVppTasks.pop_front();
-                    sts = MFX_ERR_ABORTED; // save the status of the encode task
-                    continue; // go to next vpp task
-                }
-                else
                 {
                     break;
                 }
@@ -220,7 +169,6 @@ mfxStatus sTask::Close()
 {
     WipeMfxBitstream(&mfxBS);
     EncSyncP = 0;
-    DependentVppTasks.clear();
 
     return MFX_ERR_NONE;
 }
@@ -242,7 +190,6 @@ mfxStatus sTask::Reset()
     mfxBS.DataOffset = 0;
     mfxBS.DataLength = 0;
 
-    DependentVppTasks.clear();
 
     return MFX_ERR_NONE;
 }
@@ -253,23 +200,15 @@ mfxStatus CEncodingPipeline::InitMfxEncParams(EncodeParams *pInParams)
     m_mfxEncParams.mfx.CodecId                 = pInParams->CodecId;
     m_mfxEncParams.mfx.TargetUsage             = pInParams->nTargetUsage; // trade-off between quality and speed
     m_mfxEncParams.mfx.TargetKbps              = pInParams->nBitRate; // in Kbps
-    m_mfxEncParams.mfx.RateControlMethod       = pInParams->nRateControlMethod;
-    m_mfxEncParams.mfx.GopRefDist = pInParams->nGopRefDist;
-    m_mfxEncParams.mfx.GopPicSize = pInParams->nGopPicSize;
-    m_mfxEncParams.mfx.NumRefFrame = pInParams->nNumRefFrame > 0?pInParams->nNumRefFrame : 1;
-    m_mfxEncParams.mfx.IdrInterval = pInParams->nIdrInterval;
+    m_mfxEncParams.mfx.RateControlMethod       = MFX_RATECONTROL_VBR;
+	
+	m_mfxEncParams.mfx.GopRefDist = pInParams->nGopRefDist;
 
-    if (m_mfxEncParams.mfx.RateControlMethod == MFX_RATECONTROL_CQP)
-    {
-        m_mfxEncParams.mfx.QPI = pInParams->nQPI;
-        m_mfxEncParams.mfx.QPP = pInParams->nQPP;
-        m_mfxEncParams.mfx.QPB = pInParams->nQPB;
-    }
-    m_mfxEncParams.mfx.NumSlice = pInParams->nNumSlice;
-    ConvertFrameRate(pInParams->dFrameRate, &m_mfxEncParams.mfx.FrameInfo.FrameRateExtN, &m_mfxEncParams.mfx.FrameInfo.FrameRateExtD);
+    m_mfxEncParams.mfx.FrameInfo.FrameRateExtN = pInParams->nFrameRateExtN;
+    m_mfxEncParams.mfx.FrameInfo.FrameRateExtD = pInParams->nFrameRateExtD;
+
     m_mfxEncParams.mfx.EncodedOrder            = 0; // binary flag, 0 signals encoder to take frames in display order
-
-
+	
     // specify memory type
     m_mfxEncParams.IOPattern = MFX_IOPATTERN_IN_VIDEO_MEMORY;
 
@@ -282,23 +221,12 @@ mfxStatus CEncodingPipeline::InitMfxEncParams(EncodeParams *pInParams)
     // width must be a multiple of 16
     // height must be a multiple of 16 in case of frame picture and a multiple of 32 in case of field picture
     m_mfxEncParams.mfx.FrameInfo.Width  = MSDK_ALIGN16(pInParams->nDstWidth);
-    m_mfxEncParams.mfx.FrameInfo.Height = (MFX_PICSTRUCT_PROGRESSIVE == m_mfxEncParams.mfx.FrameInfo.PicStruct)?
-        MSDK_ALIGN16(pInParams->nDstHeight) : MSDK_ALIGN32(pInParams->nDstHeight);
+    m_mfxEncParams.mfx.FrameInfo.Height = MSDK_ALIGN16(pInParams->nDstHeight) ;
 
     m_mfxEncParams.mfx.FrameInfo.CropX = 0;
     m_mfxEncParams.mfx.FrameInfo.CropY = 0;
     m_mfxEncParams.mfx.FrameInfo.CropW = pInParams->nDstWidth;
     m_mfxEncParams.mfx.FrameInfo.CropH = pInParams->nDstHeight;
-
-
-    // configure the depth of the look ahead BRC if specified in command line
-    if (pInParams->nLADepth || pInParams->nMaxSliceSize || pInParams->nBRefType)
-    {
-        m_CodingOption2.LookAheadDepth = pInParams->nLADepth;
-        m_CodingOption2.MaxSliceSize   = pInParams->nMaxSliceSize;
-        m_CodingOption2.BRefType = pInParams->nBRefType;
-        m_EncExtParams.push_back((mfxExtBuffer *)&m_CodingOption2);
-    }
 
     if (!m_EncExtParams.empty())
     {
@@ -379,7 +307,7 @@ CEncodingPipeline::CEncodingPipeline()
     m_pMFXAllocator = NULL;
     m_pEncSurfaces = NULL;
 
-    m_FileWriters.first = m_FileWriters.second = NULL;
+    m_FileWriter  = NULL;
 
     MSDK_ZERO_MEMORY(m_CodingOption);
     m_CodingOption.Header.BufferId = MFX_EXTBUFF_CODING_OPTION;
@@ -389,9 +317,6 @@ CEncodingPipeline::CEncodingPipeline()
     m_CodingOption2.Header.BufferId = MFX_EXTBUFF_CODING_OPTION2;
     m_CodingOption2.Header.BufferSz = sizeof(m_CodingOption2);
 
-#if D3D_SURFACES_SUPPORT
-    m_hwdev = NULL;
-#endif
 
     MSDK_ZERO_MEMORY(m_mfxEncParams);
 
@@ -403,49 +328,32 @@ CEncodingPipeline::~CEncodingPipeline()
     Close();
 }
 
-mfxStatus CEncodingPipeline::InitFileWriter(CSmplBitstreamWriter **ppWriter, const msdk_char *filename)
+mfxStatus CEncodingPipeline::InitFileWriter( const msdk_char *filename)
 {
-    MSDK_CHECK_ERROR(ppWriter, NULL, MFX_ERR_NULL_PTR);
-
-    MSDK_SAFE_DELETE(*ppWriter);
-    *ppWriter = new CSmplBitstreamWriter;
-    MSDK_CHECK_POINTER(*ppWriter, MFX_ERR_MEMORY_ALLOC);
-    mfxStatus sts = (*ppWriter)->Init(filename);
+    m_FileWriter = new CSmplBitstreamWriter;
+    MSDK_CHECK_POINTER(m_FileWriter, MFX_ERR_MEMORY_ALLOC);
+    mfxStatus sts = (m_FileWriter)->Init(filename);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     return sts;
 }
 
-mfxStatus CEncodingPipeline::InitFileWriters(EncodeParams *pParams)
+mfxStatus CEncodingPipeline::Init(EncodeParams *pParams, MP::IDXVAVideoProcessor* pDXVAProcessor)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
+    MSDK_CHECK_POINTER(pDXVAProcessor, MFX_ERR_NULL_PTR);
 
-    mfxStatus sts = MFX_ERR_NONE;
-
-    // prepare output file writers
-    {
-        sts = InitFileWriter(&m_FileWriters.first, pParams->dstFileBuff[0]);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-    }
-
-    return sts;
-}
-
-mfxStatus CEncodingPipeline::Init(EncodeParams *pParams)
-{
-    MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
+	m_pDXVAProcessor = pDXVAProcessor;
+	m_Params = *pParams;
 
     mfxStatus sts = MFX_ERR_NONE;
 
     // prepare input file reader
-    sts = m_FileReader.Init(pParams->strSrcFile,
-                            pParams->ColorFormat,
-                            1,
-                            pParams->srcFileBuff);
+    sts = m_FileReader.Init(pParams->strSrcFile,MFX_FOURCC_YV12 , 1, std::vector<msdk_char*>());
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
 
-    sts = InitFileWriters(pParams);
+    sts = InitFileWriter( pParams->strDstFile);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     mfxInitParam initPar;
@@ -456,98 +364,58 @@ mfxStatus CEncodingPipeline::Init(EncodeParams *pParams)
     // we set version to 1.0 and later we will query actual version of the library which will got leaded
     initPar.Version.Major = 1;
     initPar.Version.Minor = 0;
-
-    initPar.GPUCopy = pParams->gpuCopy;
+    initPar.GPUCopy = MFX_GPUCOPY_DEFAULT;
 
     // Init session
-    if (pParams->bUseHWLib) {
-        // try searching on all display adapters
-        initPar.Implementation = MFX_IMPL_HARDWARE_ANY;
-
-        // if d3d11 surfaces are used ask the library to run acceleration through D3D11
-        // feature may be unsupported due to OS or MSDK API version
-        if (D3D11_MEMORY == pParams->memType)
-            initPar.Implementation |= MFX_IMPL_VIA_D3D11;
-
-        sts = m_mfxSession.InitEx(initPar);
-
-        // MSDK API version may not support multiple adapters - then try initialize on the default
-        if (MFX_ERR_NONE != sts) {
-            initPar.Implementation = (initPar.Implementation & !MFX_IMPL_HARDWARE_ANY) | MFX_IMPL_HARDWARE;
-            sts = m_mfxSession.InitEx(initPar);
-        }
-    } else {
-        initPar.Implementation = MFX_IMPL_SOFTWARE;
-        sts = m_mfxSession.InitEx(initPar);
-    }
+    initPar.Implementation = MFX_IMPL_HARDWARE_ANY;
+    initPar.Implementation |= MFX_IMPL_VIA_D3D9;
+    sts = m_mfxSession.InitEx(initPar);
 
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     sts = MFXQueryVersion(m_mfxSession , &version); // get real API version of the loaded library
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-
-    if ((pParams->CodecId == MFX_CODEC_JPEG) && !CheckVersion(&version, MSDK_FEATURE_JPEG_ENCODE)) {
-        msdk_printf(MSDK_STRING("error: Jpeg is not supported in the %d.%d API version\n"),
-            version.Major, version.Minor);
-        return MFX_ERR_UNSUPPORTED;
-    }
-
-    if ((pParams->nRateControlMethod == MFX_RATECONTROL_LA) && !CheckVersion(&version, MSDK_FEATURE_LOOK_AHEAD)) {
-        msdk_printf(MSDK_STRING("error: Look ahead is not supported in the %d.%d API version\n"),
-            version.Major, version.Minor);
-        return MFX_ERR_UNSUPPORTED;
-    }
-
-    // set memory type
-    m_memType = pParams->memType;
-
-    // create and init frame allocator
-    sts = CreateAllocator();
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
     sts = InitMfxEncParams(pParams);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-    sts = InitMfxVppParams(pParams);
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
 
     // create encoder
     m_pmfxENC = new MFXVideoENCODE(m_mfxSession);
     MSDK_CHECK_POINTER(m_pmfxENC, MFX_ERR_MEMORY_ALLOC);
 
-    // create preprocessor if resizing was requested from command line
-    // or if different FourCC is set in InitMfxVppParams
-    if (pParams->nWidth  != pParams->nDstWidth ||
-        pParams->nHeight != pParams->nDstHeight ||
-        m_mfxVppParams.vpp.In.FourCC != m_mfxVppParams.vpp.Out.FourCC)
-    {
-        m_pmfxVPP = new MFXVideoVPP(m_mfxSession);
-        MSDK_CHECK_POINTER(m_pmfxVPP, MFX_ERR_MEMORY_ALLOC);
-    }
-
     sts = ResetMFXComponents(pParams);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+
+	// set device handle
+	mfxHDL hdl = (mfxHDL)m_pDXVAProcessor->getHandle();
+	mfxHandleType hdl_t = MFX_HANDLE_D3D9_DEVICE_MANAGER;
+	sts = m_mfxSession.SetHandle(hdl_t, hdl);
+	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+
+	// set frame allocator
+	m_pMFXAllocator = (mfxFrameAllocator*)m_pDXVAProcessor->getFrameAllocator();
+	sts = m_mfxSession.SetFrameAllocator(m_pMFXAllocator);
+    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+
 
     return MFX_ERR_NONE;
 }
 
+bool  CEncodingPipeline::Input (void * pSurface/*d3d9surface*/)
+{
+}
+
 void CEncodingPipeline::Close()
 {
-    if (m_FileWriters.first)
+    if (m_FileWriter)
     {
-        msdk_printf(MSDK_STRING("Frame number: %u\r\n"), m_FileWriters.first->m_nProcessedFramesNum);
-#ifdef TIME_STATS
+        msdk_printf(MSDK_STRING("Frame number: %u\r\n"), m_FileWriter->m_nProcessedFramesNum);
         mfxF64 ProcDeltaTime = m_statOverall.GetDeltaTime() - m_statFile.GetDeltaTime() - m_TaskPool.GetFileStatistics().GetDeltaTime();
-        msdk_printf(MSDK_STRING("Encoding fps: %.0f"), m_FileWriters.first->m_nProcessedFramesNum / ProcDeltaTime);
-#endif
+        msdk_printf(MSDK_STRING("Encoding fps: %.0f"), m_FileWriter->m_nProcessedFramesNum / ProcDeltaTime);
     }
 
     MSDK_SAFE_DELETE(m_pmfxENC);
-    MSDK_SAFE_DELETE(m_pmfxVPP);
 
-    FreeVppDoNotUse();
 
     DeleteFrames();
 
@@ -556,26 +424,11 @@ void CEncodingPipeline::Close()
     m_mfxSession.Close();
 
     m_FileReader.Close();
-    FreeFileWriters();
 
-    // allocator if used as external for MediaSDK must be deleted after SDK components
-    DeleteAllocator();
-}
+    if (m_FileWriter)
+        m_FileWriter->Close();
+    MSDK_SAFE_DELETE(m_FileWriter);
 
-void CEncodingPipeline::FreeFileWriters()
-{
-    if (m_FileWriters.second == m_FileWriters.first)
-    {
-        m_FileWriters.second = NULL; // second do not own the writer - just forget pointer
-    }
-
-    if (m_FileWriters.first)
-        m_FileWriters.first->Close();
-    MSDK_SAFE_DELETE(m_FileWriters.first);
-
-    if (m_FileWriters.second)
-        m_FileWriters.second->Close();
-    MSDK_SAFE_DELETE(m_FileWriters.second);
 }
 
 mfxStatus CEncodingPipeline::ResetMFXComponents(EncodeParams* pParams)
@@ -588,13 +441,6 @@ mfxStatus CEncodingPipeline::ResetMFXComponents(EncodeParams* pParams)
     sts = m_pmfxENC->Close();
     MSDK_IGNORE_MFX_STS(sts, MFX_ERR_NOT_INITIALIZED);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-    if (m_pmfxVPP)
-    {
-        sts = m_pmfxVPP->Close();
-        MSDK_IGNORE_MFX_STS(sts, MFX_ERR_NOT_INITIALIZED);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-    }
 
     // free allocated frames
     DeleteFrames();
@@ -613,19 +459,8 @@ mfxStatus CEncodingPipeline::ResetMFXComponents(EncodeParams* pParams)
 
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-    if (m_pmfxVPP)
-    {
-        sts = m_pmfxVPP->Init(&m_mfxVppParams);
-        if (MFX_WRN_PARTIAL_ACCELERATION == sts)
-        {
-            msdk_printf(MSDK_STRING("WARNING: partial acceleration\n"));
-            MSDK_IGNORE_MFX_STS(sts, MFX_WRN_PARTIAL_ACCELERATION);
-        }
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-    }
-
     mfxU32 nEncodedDataBufferSize = m_mfxEncParams.mfx.FrameInfo.Width * m_mfxEncParams.mfx.FrameInfo.Height * 4;
-    sts = m_TaskPool.Init(&m_mfxSession, m_FileWriters.first, m_mfxEncParams.AsyncDepth, nEncodedDataBufferSize, m_FileWriters.second);
+    sts = m_TaskPool.Init(&m_mfxSession, m_FileWriter, m_mfxEncParams.AsyncDepth, nEncodedDataBufferSize);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     return MFX_ERR_NONE;
@@ -634,13 +469,13 @@ mfxStatus CEncodingPipeline::ResetMFXComponents(EncodeParams* pParams)
 mfxStatus CEncodingPipeline::AllocateSufficientBuffer(mfxBitstream* pBS)
 {
     MSDK_CHECK_POINTER(pBS, MFX_ERR_NULL_PTR);
-    MSDK_CHECK_POINTER(GetFirstEncoder(), MFX_ERR_NOT_INITIALIZED);
+    MSDK_CHECK_POINTER(m_pmfxENC, MFX_ERR_NOT_INITIALIZED);
 
     mfxVideoParam par;
     MSDK_ZERO_MEMORY(par);
 
     // find out the required buffer size
-    mfxStatus sts = GetFirstEncoder()->GetVideoParam(&par);
+    mfxStatus sts = m_pmfxENC->GetVideoParam(&par);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     // reallocate bigger buffer for output
@@ -669,6 +504,32 @@ mfxStatus CEncodingPipeline::GetFreeTask(sTask **ppTask)
 
 mfxStatus CEncodingPipeline::Run()
 {
+    for (;;)
+    {
+        mfxStatus sts = RunEncoding();
+
+        if (MFX_ERR_DEVICE_LOST == sts || MFX_ERR_DEVICE_FAILED == sts)
+        {
+            msdk_printf(MSDK_STRING("\nERROR: Hardware device was lost or returned an unexpected error. Recovering...\n"));
+
+            sts = ResetMFXComponents(&m_Params);
+            if (sts != MFX_ERR_NONE) return  MFX_ERR_UNKNOWN;
+            continue;
+        }
+        else
+        {
+            if (sts != MFX_ERR_NONE) return  MFX_ERR_UNKNOWN;
+            break;
+        }
+    }
+
+	Close();
+	return MFX_ERR_NONE;
+
+}
+
+mfxStatus CEncodingPipeline::RunEncoding()
+{
     m_statOverall.StartTimeMeasurement();
     MSDK_CHECK_POINTER(m_pmfxENC, MFX_ERR_NOT_INITIALIZED);
 
@@ -678,16 +539,6 @@ mfxStatus CEncodingPipeline::Run()
 
     sTask *pCurrentTask = NULL; // a pointer to the current task
     mfxU16 nEncSurfIdx = 0;     // index of free surface for encoder input (vpp output)
-    mfxU16 nVppSurfIdx = 0;     // index of free surface for vpp input
-
-    mfxSyncPoint VppSyncPoint = NULL; // a sync point associated with an asynchronous vpp call
-    bool bVppMultipleOutput = false;  // this flag is true if VPP produces more frames at output
-                                      // than consumes at input. E.g. framerate conversion 30 fps -> 60 fps
-
-
-    // Since in sample we support just 2 views
-    // we will change this value between 0 and 1 in case of MVC
-    mfxU16 currViewNum = 0;
 
     sts = MFX_ERR_NONE;
 
@@ -704,84 +555,20 @@ mfxStatus CEncodingPipeline::Run()
 
         // point pSurf to encoder surface
         pSurf = &m_pEncSurfaces[nEncSurfIdx];
-        if (!bVppMultipleOutput)
-        {
-            // if vpp is enabled find free surface for vpp input and point pSurf to vpp surface
-            if (m_pmfxVPP)
-            {
-                nVppSurfIdx = GetFreeSurface(m_pVppSurfaces, m_VppResponse.NumFrameActual);
-                MSDK_CHECK_ERROR(nVppSurfIdx, MSDK_INVALID_SURF_IDX, MFX_ERR_MEMORY_ALLOC);
 
-                pSurf = &m_pVppSurfaces[nVppSurfIdx];
-            }
+		// get YUV pointers
+		sts = m_pMFXAllocator->Lock(m_pMFXAllocator->pthis, pSurf->Data.MemId, &(pSurf->Data));
+		MSDK_BREAK_ON_ERROR(sts);
 
-            // load frame from file to surface data
-            // if we share allocator with Media SDK we need to call Lock to access surface data and...
-            if (m_bExternalAlloc)
-            {
-                // get YUV pointers
-                sts = m_pMFXAllocator->Lock(m_pMFXAllocator->pthis, pSurf->Data.MemId, &(pSurf->Data));
-                MSDK_BREAK_ON_ERROR(sts);
-            }
+		m_statFile.StartTimeMeasurement();
+		sts = m_FileReader.LoadNextFrame(pSurf);
+		m_statFile.StopTimeMeasurement();
+		MSDK_BREAK_ON_ERROR(sts);
 
-            pSurf->Info.FrameId.ViewId = currViewNum;
-            m_statFile.StartTimeMeasurement();
-            sts = m_FileReader.LoadNextFrame(pSurf);
-            m_statFile.StopTimeMeasurement();
-            MSDK_BREAK_ON_ERROR(sts);
+		// ... after we're done call Unlock
+		sts = m_pMFXAllocator->Unlock(m_pMFXAllocator->pthis, pSurf->Data.MemId, &(pSurf->Data));
+		MSDK_BREAK_ON_ERROR(sts);
 
-            // ... after we're done call Unlock
-            if (m_bExternalAlloc)
-            {
-                sts = m_pMFXAllocator->Unlock(m_pMFXAllocator->pthis, pSurf->Data.MemId, &(pSurf->Data));
-                MSDK_BREAK_ON_ERROR(sts);
-            }
-        }
-
-        // perform preprocessing if required
-        if (m_pmfxVPP)
-        {
-            bVppMultipleOutput = false; // reset the flag before a call to VPP
-            for (;;)
-            {
-                sts = m_pmfxVPP->RunFrameVPPAsync(&m_pVppSurfaces[nVppSurfIdx], &m_pEncSurfaces[nEncSurfIdx],
-                    NULL, &VppSyncPoint);
-
-                if (MFX_ERR_NONE < sts && !VppSyncPoint) // repeat the call if warning and no output
-                {
-                    if (MFX_WRN_DEVICE_BUSY == sts)
-                        MSDK_SLEEP(1); // wait if device is busy
-                }
-                else if (MFX_ERR_NONE < sts && VppSyncPoint)
-                {
-                    sts = MFX_ERR_NONE; // ignore warnings if output is available
-                    break;
-                }
-                else
-                    break; // not a warning
-            }
-
-            // process errors
-            if (MFX_ERR_MORE_DATA == sts)
-            {
-                continue;
-            }
-            else if (MFX_ERR_MORE_SURFACE == sts)
-            {
-                bVppMultipleOutput = true;
-            }
-            else
-            {
-                MSDK_BREAK_ON_ERROR(sts);
-            }
-        }
-
-        // save the id of preceding vpp task which will produce input data for the encode task
-        if (VppSyncPoint)
-        {
-            pCurrentTask->DependentVppTasks.push_back(VppSyncPoint);
-            VppSyncPoint = NULL;
-        }
 
         for (;;)
         {
@@ -816,90 +603,6 @@ mfxStatus CEncodingPipeline::Run()
     MSDK_IGNORE_MFX_STS(sts, MFX_ERR_MORE_DATA);
     // exit in case of other errors
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-    if (m_pmfxVPP)
-    {
-        // loop to get buffered frames from vpp
-        while (MFX_ERR_NONE <= sts || MFX_ERR_MORE_DATA == sts || MFX_ERR_MORE_SURFACE == sts)
-            // MFX_ERR_MORE_SURFACE can be returned only by RunFrameVPPAsync
-            // MFX_ERR_MORE_DATA is accepted only from EncodeFrameAsync
-        {
-            // find free surface for encoder input (vpp output)
-            nEncSurfIdx = GetFreeSurface(m_pEncSurfaces, m_EncResponse.NumFrameActual);
-            MSDK_CHECK_ERROR(nEncSurfIdx, MSDK_INVALID_SURF_IDX, MFX_ERR_MEMORY_ALLOC);
-
-            for (;;)
-            {
-                sts = m_pmfxVPP->RunFrameVPPAsync(NULL, &m_pEncSurfaces[nEncSurfIdx], NULL, &VppSyncPoint);
-
-                if (MFX_ERR_NONE < sts && !VppSyncPoint) // repeat the call if warning and no output
-                {
-                    if (MFX_WRN_DEVICE_BUSY == sts)
-                        MSDK_SLEEP(1); // wait if device is busy
-                }
-                else if (MFX_ERR_NONE < sts && VppSyncPoint)
-                {
-                    sts = MFX_ERR_NONE; // ignore warnings if output is available
-                    break;
-                }
-                else
-                    break; // not a warning
-            }
-
-            if (MFX_ERR_MORE_SURFACE == sts)
-            {
-                continue;
-            }
-            else
-            {
-                MSDK_BREAK_ON_ERROR(sts);
-            }
-
-            // get a free task (bit stream and sync point for encoder)
-            sts = GetFreeTask(&pCurrentTask);
-            MSDK_BREAK_ON_ERROR(sts);
-
-            // save the id of preceding vpp task which will produce input data for the encode task
-            if (VppSyncPoint)
-            {
-                pCurrentTask->DependentVppTasks.push_back(VppSyncPoint);
-                VppSyncPoint = NULL;
-            }
-
-            for (;;)
-            {
-                sts = m_pmfxENC->EncodeFrameAsync(NULL, &m_pEncSurfaces[nEncSurfIdx], &pCurrentTask->mfxBS, &pCurrentTask->EncSyncP);
-
-                if (MFX_ERR_NONE < sts && !pCurrentTask->EncSyncP) // repeat the call if warning and no output
-                {
-                    if (MFX_WRN_DEVICE_BUSY == sts)
-                        MSDK_SLEEP(1); // wait if device is busy
-                }
-                else if (MFX_ERR_NONE < sts && pCurrentTask->EncSyncP)
-                {
-                    sts = MFX_ERR_NONE; // ignore warnings if output is available
-                    break;
-                }
-                else if (MFX_ERR_NOT_ENOUGH_BUFFER == sts)
-                {
-                    sts = AllocateSufficientBuffer(&pCurrentTask->mfxBS);
-                    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-                }
-                else
-                {
-                    // get next surface and new task for 2nd bitstream in ViewOutput mode
-                    MSDK_IGNORE_MFX_STS(sts, MFX_ERR_MORE_BITSTREAM);
-                    break;
-                }
-            }
-        }
-
-        // MFX_ERR_MORE_DATA is the correct status to exit buffering loop with
-        // indicates that there are no more buffered frames
-        MSDK_IGNORE_MFX_STS(sts, MFX_ERR_MORE_DATA);
-        // exit in case of other errors
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-    }
 
     // loop to get buffered frames from encoder
     while (MFX_ERR_NONE <= sts)
@@ -964,12 +667,7 @@ void CEncodingPipeline::PrintInfo()
     msdk_printf(MSDK_STRING("\nInput file format\t%s\n"), ColorFormatToStr(m_FileReader.m_ColorFormat));
     msdk_printf(MSDK_STRING("Output video\t\t%s\n"), CodecIdToStr(m_mfxEncParams.mfx.CodecId).c_str());
 
-    mfxFrameInfo SrcPicInfo = m_mfxVppParams.vpp.In;
     mfxFrameInfo DstPicInfo = m_mfxEncParams.mfx.FrameInfo;
-
-    msdk_printf(MSDK_STRING("Source picture:\n"));
-    msdk_printf(MSDK_STRING("\tResolution\t%dx%d\n"), SrcPicInfo.Width, SrcPicInfo.Height);
-    msdk_printf(MSDK_STRING("\tCrop X,Y,W,H\t%d,%d,%d,%d\n"), SrcPicInfo.CropX, SrcPicInfo.CropY, SrcPicInfo.CropW, SrcPicInfo.CropH);
 
     msdk_printf(MSDK_STRING("Destination picture:\n"));
     msdk_printf(MSDK_STRING("\tResolution\t%dx%d\n"), DstPicInfo.Width, DstPicInfo.Height);
@@ -983,13 +681,11 @@ void CEncodingPipeline::PrintInfo()
     msdk_printf(MSDK_STRING("Idr Interval\t%d\n"), m_mfxEncParams.mfx.IdrInterval);
     msdk_printf(MSDK_STRING("Target usage\t%s\n"), TargetUsageToStr(m_mfxEncParams.mfx.TargetUsage));
 
-    const msdk_char* sMemType = m_memType == D3D9_MEMORY  ? MSDK_STRING("d3d")
-                       : (m_memType == D3D11_MEMORY ? MSDK_STRING("d3d11")
-                                                    : MSDK_STRING("system"));
+    const msdk_char* sMemType = MSDK_STRING("d3d");
     msdk_printf(MSDK_STRING("Memory type\t%s\n"), sMemType);
 
     mfxIMPL impl;
-    GetFirstSession().QueryIMPL(&impl);
+    m_mfxSession.QueryIMPL(&impl);
 
     const msdk_char* sImpl = (MFX_IMPL_VIA_D3D11 == MFX_IMPL_VIA_MASK(impl)) ? MSDK_STRING("hw_d3d11")
                      : (MFX_IMPL_HARDWARE & impl)  ? MSDK_STRING("hw")
@@ -997,7 +693,7 @@ void CEncodingPipeline::PrintInfo()
     msdk_printf(MSDK_STRING("Media SDK impl\t\t%s\n"), sImpl);
 
     mfxVersion ver;
-    GetFirstSession().QueryVersion(&ver);
+    m_mfxSession.QueryVersion(&ver);
     msdk_printf(MSDK_STRING("Media SDK version\t%d.%d\n"), ver.Major, ver.Minor);
 
     msdk_printf(MSDK_STRING("\n"));

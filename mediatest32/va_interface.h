@@ -8,7 +8,7 @@ enum VideoFrameType{
 	SOFT_I420,
 	SOFT_NV12,
 	D3D9_SURFACE,
-	MFX_FRAME_SURFACE
+	MFX_FRAME_SURFACE /* surface type is mfxFrameSurface1* of IntelMediaSDK */
 };
 
 struct VideoFrameData
@@ -19,8 +19,8 @@ struct VideoFrameData
 	int rotation;
 	int stride0;
 	union {
-	void* pSurface;
-	void* pData0;
+		void* pSurface;
+		void* pData0;
 	};
 	int stride1;
 	void* pData1;
@@ -35,9 +35,28 @@ struct IVideoRender
 
 struct IDXVAVideoRender : public IVideoRender
 {
-	virtual void * getHandle() = 0; // device manager 
-	virtual void * getFrameAllocator() =0; 
+	// teturn type : mfxHDL of IntelMediaSDK
+	// handle type : MFX_HANDLE_D3D9_DEVICE_MANAGER
+	virtual void * getHandle() = 0; 
+
+	// return type : mfxFrameAllocator* of IntelMediaSDK
+	virtual void * getFrameAllocator() =0;  
 };
 
+
+struct IVideoProcessor 
+{
+	virtual bool videoProcessBlt(VideoFrameData * pSrc, VideoFrameData * pTarget) = 0;
+};
+
+struct IDXVAVideoProcessor : public IVideoProcessor
+{
+	// teturn type : mfxHDL of IntelMediaSDK
+	// handle type : MFX_HANDLE_D3D9_DEVICE_MANAGER
+	virtual void * getHandle() = 0; 
+
+	// return type : mfxFrameAllocator* of IntelMediaSDK
+	virtual void * getFrameAllocator() =0;  
+};
 
 }
