@@ -169,7 +169,12 @@
     <ClInclude Include="..\NativeMedia\VideoManager.h" />
     <ClInclude Include="..\NativeMedia\Win32Event.h" />
     <ClInclude Include="..\NativeMedia\WinRTCSDKTypes.h" />
+    <ClInclude Include="bitstream_buffering.h" />
+    <ClInclude Include="camera.h" />
+    <ClInclude Include="dxva_processor.h" />
+    <ClInclude Include="dxva_renderer.h" />
     <ClInclude Include="encode_test.h" />
+    <ClInclude Include="loopback.h" />
     <ClInclude Include="va_interface.h" />
   </ItemGroup>
   <ItemGroup>

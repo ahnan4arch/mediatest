@@ -774,6 +774,8 @@ mfxStatus CDecodingPipeline::Run()
         }
     }
 
+	return sts;
+
 }
 
 void CDecodingPipeline::PrintInfo()

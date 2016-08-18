@@ -1,10 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source Files">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
-    </Filter>
     <Filter Include="Resource Files">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
@@ -18,13 +14,17 @@
     <Filter Include="audio">
       <UniqueIdentifier>{946056b1-a135-4456-8833-194b2e493123}</UniqueIdentifier>
     </Filter>
+    <Filter Include="mediatest">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="mediatest32.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>mediatest</Filter>
     </ClCompile>
     <ClCompile Include="..\NativeMedia\BaseWnd.cpp">
       <Filter>video</Filter>
@@ -108,10 +108,10 @@
       <Filter>audio</Filter>
     </ClCompile>
     <ClCompile Include="fakeimage.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>mediatest</Filter>
     </ClCompile>
     <ClCompile Include="decode_test.h">
-      <Filter>Source Files</Filter>
+      <Filter>mediatest</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -263,7 +263,22 @@
       <Filter>audio</Filter>
     </ClInclude>
     <ClInclude Include="encode_test.h">
-      <Filter>Source Files</Filter>
+      <Filter>mediatest</Filter>
+    </ClInclude>
+    <ClInclude Include="loopback.h">
+      <Filter>mediatest</Filter>
+    </ClInclude>
+    <ClInclude Include="dxva_renderer.h">
+      <Filter>mediatest</Filter>
+    </ClInclude>
+    <ClInclude Include="dxva_processor.h">
+      <Filter>mediatest</Filter>
+    </ClInclude>
+    <ClInclude Include="camera.h">
+      <Filter>mediatest</Filter>
+    </ClInclude>
+    <ClInclude Include="bitstream_buffering.h">
+      <Filter>mediatest</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

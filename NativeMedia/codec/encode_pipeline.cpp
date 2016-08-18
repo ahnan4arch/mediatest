@@ -246,28 +246,20 @@ mfxStatus CEncodingPipeline::AllocFrames()
     mfxStatus sts = MFX_ERR_NONE;
     mfxFrameAllocRequest EncRequest;
 
-    mfxU16 nEncSurfNum = 0; // number of surfaces for encoder
-    mfxU16 nVppSurfNum = 0; // number of surfaces for vpp
-
     MSDK_ZERO_MEMORY(EncRequest);
 
     // Calculate the number of surfaces for components.
     // QueryIOSurf functions tell how many surfaces are required to produce at least 1 output.
     // To achieve better performance we provide extra surfaces.
     // 1 extra surface at input allows to get 1 extra output.
-
     sts = m_pmfxENC->QueryIOSurf(&m_mfxEncParams, &EncRequest);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     if (EncRequest.NumFrameSuggested < m_mfxEncParams.AsyncDepth)
         return MFX_ERR_MEMORY_ALLOC;
 
-    // The number of surfaces shared by vpp output and encode input.
-    nEncSurfNum = EncRequest.NumFrameSuggested;
-
-
     // prepare allocation requests
-    EncRequest.NumFrameSuggested = EncRequest.NumFrameMin = nEncSurfNum;
+    EncRequest.NumFrameSuggested = EncRequest.NumFrameMin = EncRequest.NumFrameSuggested;
     MSDK_MEMCPY_VAR(EncRequest.Info, &(m_mfxEncParams.mfx.FrameInfo), sizeof(mfxFrameInfo));
 
     // alloc frames for encoder
@@ -328,16 +320,6 @@ CEncodingPipeline::~CEncodingPipeline()
     Close();
 }
 
-mfxStatus CEncodingPipeline::InitFileWriter( const msdk_char *filename)
-{
-    m_FileWriter = new CSmplBitstreamWriter;
-    MSDK_CHECK_POINTER(m_FileWriter, MFX_ERR_MEMORY_ALLOC);
-    mfxStatus sts = (m_FileWriter)->Init(filename);
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-    return sts;
-}
-
 mfxStatus CEncodingPipeline::Init(EncodeParams *pParams, MP::IDXVAVideoProcessor* pDXVAProcessor)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
@@ -349,15 +331,17 @@ mfxStatus CEncodingPipeline::Init(EncodeParams *pParams, MP::IDXVAVideoProcessor
     mfxStatus sts = MFX_ERR_NONE;
 
     // prepare input file reader
-    sts = m_FileReader.Init(pParams->strSrcFile,MFX_FOURCC_YV12 , 1, std::vector<msdk_char*>());
+    sts = m_FileReader.Init(pParams->strSrcFile, MFX_FOURCC_YV12 , 1, std::vector<msdk_char*>());
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-
-    sts = InitFileWriter( pParams->strDstFile);
+	// prepare output file writer
+    m_FileWriter = new CSmplBitstreamWriter;
+    MSDK_CHECK_POINTER(m_FileWriter, MFX_ERR_MEMORY_ALLOC);
+    sts = (m_FileWriter)->Init( pParams->strDstFile);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
+	// prepare session param
     mfxInitParam initPar;
-    mfxVersion version;     // real API version with which library is initialized
 
     MSDK_ZERO_MEMORY(initPar);
 
@@ -373,19 +357,9 @@ mfxStatus CEncodingPipeline::Init(EncodeParams *pParams, MP::IDXVAVideoProcessor
 
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-    sts = MFXQueryVersion(m_mfxSession , &version); // get real API version of the loaded library
+    sts = MFXQueryVersion(m_mfxSession , &m_Version); // get real API version of the loaded library
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-    sts = InitMfxEncParams(pParams);
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-    // create encoder
-    m_pmfxENC = new MFXVideoENCODE(m_mfxSession);
-    MSDK_CHECK_POINTER(m_pmfxENC, MFX_ERR_MEMORY_ALLOC);
-
-    sts = ResetMFXComponents(pParams);
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
+	
 	// set device handle
 	mfxHDL hdl = (mfxHDL)m_pDXVAProcessor->getHandle();
 	mfxHandleType hdl_t = MFX_HANDLE_D3D9_DEVICE_MANAGER;
@@ -397,12 +371,20 @@ mfxStatus CEncodingPipeline::Init(EncodeParams *pParams, MP::IDXVAVideoProcessor
 	sts = m_mfxSession.SetFrameAllocator(m_pMFXAllocator);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
+	// init encoder params
+    sts = InitMfxEncParams(pParams);
+    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+
+    // create encoder
+    m_pmfxENC = new MFXVideoENCODE(m_mfxSession);
+    MSDK_CHECK_POINTER(m_pmfxENC, MFX_ERR_MEMORY_ALLOC);
+
+    sts = ResetMFXComponents(pParams);
+    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+
+
 
     return MFX_ERR_NONE;
-}
-
-bool  CEncodingPipeline::Input (void * pSurface/*d3d9surface*/)
-{
 }
 
 void CEncodingPipeline::Close()
@@ -528,6 +510,78 @@ mfxStatus CEncodingPipeline::Run()
 
 }
 
+// input captured frame
+bool  CEncodingPipeline::Input (void * pSurface/*d3d9surface*/)
+{
+	if ( !m_bLoopBack) return false; // not in loopback mode, data is input from a file
+
+	MP::VideoFrameData src;
+	MP::VideoFrameData dst;
+	src.type = MP::D3D9_SURFACE;
+	src.pSurface = pSurface;
+
+	mfxU16 nEncSurfIdx =MSDK_INVALID_SURF_IDX;
+	if ( !m_bLoopBack)
+	{ // not in loopback mode, data is input from a file
+
+		// find free surface for encoder input
+		mfxU16 nEncSurfIdx = GetFreeSurface(m_pEncSurfaces, m_EncResponse.NumFrameActual);
+		MSDK_CHECK_ERROR(nEncSurfIdx, MSDK_INVALID_SURF_IDX, MFX_ERR_MEMORY_ALLOC);
+
+		mfxFrameSurface1* pSurf = NULL; // dispatching pointer
+		// point pSurf to encoder surface
+		pSurf = &m_pEncSurfaces[nEncSurfIdx];
+	}
+
+	dst.type = MP::MFX_FRAME_SURFACE;
+	dst.pSurface = pSurface;
+
+
+
+	return true;
+}
+
+mfxU16  CEncodingPipeline::GetNextSurface ()
+{
+	mfxU16 nEncSurfIdx =MSDK_INVALID_SURF_IDX;
+	if ( !m_bLoopBack)
+	{ // not in loopback mode, data is input from a file
+
+		// find free surface for encoder input
+		mfxU16 nEncSurfIdx = GetFreeSurface(m_pEncSurfaces, m_EncResponse.NumFrameActual);
+		MSDK_CHECK_ERROR(nEncSurfIdx, MSDK_INVALID_SURF_IDX, MFX_ERR_MEMORY_ALLOC);
+
+		mfxFrameSurface1* pSurf = NULL; // dispatching pointer
+		// point pSurf to encoder surface
+		pSurf = &m_pEncSurfaces[nEncSurfIdx];
+
+		// get YUV pointers
+		mfxStatus sts = m_pMFXAllocator->Lock(m_pMFXAllocator->pthis, pSurf->Data.MemId, &(pSurf->Data));
+		if (MFX_ERR_NONE > sts) return nEncSurfIdx;
+
+		m_statFile.StartTimeMeasurement();
+		sts = m_FileReader.LoadNextFrame(pSurf);
+		m_statFile.StopTimeMeasurement();
+
+		// after we're done call Unlock
+		sts = m_pMFXAllocator->Unlock(m_pMFXAllocator->pthis, pSurf->Data.MemId, &(pSurf->Data));
+	}
+	else // loopback mode
+	{
+		// dequeue one surface from the ready queue
+		if ( m_ReadyQueue.empty() ==false)
+		{
+			WinRTCSDK::AutoLock l (m_lock);
+			nEncSurfIdx = m_ReadyQueue.front();
+			m_ReadyQueue.pop();
+		}
+	
+	}
+
+	return nEncSurfIdx;
+
+}
+
 mfxStatus CEncodingPipeline::RunEncoding()
 {
     m_statOverall.StartTimeMeasurement();
@@ -549,25 +603,10 @@ mfxStatus CEncodingPipeline::RunEncoding()
         sts = GetFreeTask(&pCurrentTask);
         MSDK_BREAK_ON_ERROR(sts);
 
-        // find free surface for encoder input
-        nEncSurfIdx = GetFreeSurface(m_pEncSurfaces, m_EncResponse.NumFrameActual);
+		//////////////////////////////////////////////////
+		// Get next frame to encode
+        nEncSurfIdx = GetNextSurface();
         MSDK_CHECK_ERROR(nEncSurfIdx, MSDK_INVALID_SURF_IDX, MFX_ERR_MEMORY_ALLOC);
-
-        // point pSurf to encoder surface
-        pSurf = &m_pEncSurfaces[nEncSurfIdx];
-
-		// get YUV pointers
-		sts = m_pMFXAllocator->Lock(m_pMFXAllocator->pthis, pSurf->Data.MemId, &(pSurf->Data));
-		MSDK_BREAK_ON_ERROR(sts);
-
-		m_statFile.StartTimeMeasurement();
-		sts = m_FileReader.LoadNextFrame(pSurf);
-		m_statFile.StopTimeMeasurement();
-		MSDK_BREAK_ON_ERROR(sts);
-
-		// ... after we're done call Unlock
-		sts = m_pMFXAllocator->Unlock(m_pMFXAllocator->pthis, pSurf->Data.MemId, &(pSurf->Data));
-		MSDK_BREAK_ON_ERROR(sts);
 
 
         for (;;)

@@ -41,7 +41,7 @@ struct EncodeParams
     msdk_char strDstFile[MSDK_MAX_FILENAME_LEN];
 
     mfxU16 nAsyncDepth; // depth of asynchronous pipeline, this number can be tuned to achieve better performance
-
+	bool bLoopBack;
 };
 
 struct sTask
@@ -91,27 +91,27 @@ public:
 
     mfxStatus Init(EncodeParams *pParams, MP::IDXVAVideoProcessor* pDXVAProcessor );
     mfxStatus Run();
-    void Close();
+    void      Close();
     mfxStatus ResetMFXComponents(EncodeParams* pParams);
-
-    void  PrintInfo();
+    void      PrintInfo();
+	bool      Input (void * pSurface/*d3d9surface*/); 
 
 private:
 
 	mfxStatus RunEncoding();
-
     mfxStatus InitMfxEncParams(EncodeParams *pParams);
-    mfxStatus InitFileWriter( const msdk_char *filename);
-    mfxStatus AllocFrames();
-    void DeleteFrames();
+	mfxStatus AllocFrames();
+    void      DeleteFrames();
     mfxStatus AllocateSufficientBuffer(mfxBitstream* pBS);
     mfxStatus GetFreeTask(sTask **ppTask);
-	bool  Input (void * pSurface/*d3d9surface*/);
+	mfxU16    GetNextSurface ();
+
 private:
     CSmplBitstreamWriter *    m_FileWriter;
     CSmplYUVReader            m_FileReader;
     CEncTaskPool              m_TaskPool;
 
+	mfxVersion                    m_Version;     // real API version with which library is initialized
     MFXVideoSession               m_mfxSession;
     MFXVideoENCODE*               m_pmfxENC;
     mfxVideoParam                 m_mfxEncParams;
@@ -119,18 +119,24 @@ private:
     mfxFrameAllocResponse         m_EncResponse;  // memory allocation response for encoder
     mfxFrameAllocator*            m_pMFXAllocator;
 
-	std::queue<mfxFrameSurface1*> m_ReadyQueue;
+	std::queue<mfxU16>            m_ReadyQueue; //a queue of indices of mfxFrameSurface1* in m_pEncSurfaces, 
 	WinRTCSDK::Mutex              m_lock;
 
-    mfxExtCodingOption m_CodingOption;
+	/////////////////////////////
+	// ext params
+	mfxExtAvcTemporalLayers      m_TempoLayers;
+    mfxExtCodingOption           m_CodingOption;
     // for look ahead BRC configuration
-    mfxExtCodingOption2 m_CodingOption2;
+    mfxExtCodingOption2          m_CodingOption2;
 
     // external parameters for each component are stored in a vector
-    std::vector<mfxExtBuffer*> m_EncExtParams;
+    std::vector<mfxExtBuffer*>   m_EncExtParams;
+
+	bool						 m_bLoopBack;//loopback test mode.
 
     CTimeStatistics m_statOverall;
     CTimeStatistics m_statFile;
+
 	EncodeParams    m_Params;
 	// The DXVA interface
 	MP::IDXVAVideoProcessor* m_pDXVAProcessor;

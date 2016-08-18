@@ -35,10 +35,8 @@ struct IVideoRender
 
 struct IDXVAVideoRender : public IVideoRender
 {
-	// teturn type : mfxHDL of IntelMediaSDK
-	// handle type : MFX_HANDLE_D3D9_DEVICE_MANAGER
+	// return type : mfxHDL of IntelMediaSDK(MFX_HANDLE_D3D9_DEVICE_MANAGER)
 	virtual void * getHandle() = 0; 
-
 	// return type : mfxFrameAllocator* of IntelMediaSDK
 	virtual void * getFrameAllocator() =0;  
 };
@@ -51,10 +49,8 @@ struct IVideoProcessor
 
 struct IDXVAVideoProcessor : public IVideoProcessor
 {
-	// teturn type : mfxHDL of IntelMediaSDK
-	// handle type : MFX_HANDLE_D3D9_DEVICE_MANAGER
+	// return type : mfxHDL of IntelMediaSDK(MFX_HANDLE_D3D9_DEVICE_MANAGER)
 	virtual void * getHandle() = 0; 
-
 	// return type : mfxFrameAllocator* of IntelMediaSDK
 	virtual void * getFrameAllocator() =0;  
 };

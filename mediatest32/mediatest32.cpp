@@ -6,7 +6,10 @@
 
 #include "Looper.h"
 #include "D3D9Renderer.h"
+
+#include "camera.h"
 #include "decode_test.h"
+#include "encode_test.h"
 
 using namespace WinRTCSDK;
 using namespace MP;
@@ -27,27 +30,6 @@ using namespace MP;
 #pragma comment (lib, "dxgi.lib")
 #pragma comment (lib, "dwmapi.lib")
 
-BYTE _image [320*240*3/2];
-void make_fake_image ( BYTE * image);
-
-void testFakeImage()
-{
-	BaseWnd * dummyWnd_ = new BaseWnd(TRUE);
-	dummyWnd_->Create(0, L"DUMMYD3DRENDER", WS_OVERLAPPEDWINDOW, 0, 0, 400, 400, NULL, 0, NULL);
-	::ShowWindow(*dummyWnd_, SW_SHOW);
-
-	D3D9Renderer render;
-	render.Create();
-	render.CreateVideo("testvid", *dummyWnd_);
-	VideoFrameInfo frame;
-	frame.width = 320;
-	frame.height = 240;
-	frame.image = _image;
-
-	render.DrawVideo("testvid", frame);
-}
-
-
 
 INT messagePump()
 {
@@ -61,14 +43,44 @@ INT messagePump()
 	return 0;
 }
 
-int _tmain(int argc, _TCHAR* argv[])
+
+int testDecode()
 {
-//	testFakeImage();
 	DecodeTest decodeTest;
 	decodeTest.init();
 	decodeTest.start();
 	messagePump();
 	decodeTest.stop();
 	return 0;
+}
+
+int testEncode()
+{
+	EncodeTest encodeTest;
+	encodeTest.init();
+	encodeTest.start();
+	messagePump();
+	encodeTest.stop();
+	return 0;
+}
+
+int testCamera()
+{
+	Camera cam(1280,720);
+	cam.Init();
+	vector<MediaDevInfo> devList = cam.GetCameraList();
+	cam.OpenCamera(devList[0].symbolicLink);
+	messagePump();
+	cam.CloseCamera();
+	cam.UnInit();
+	return 0;
+}
+
+int _tmain(int argc, _TCHAR* argv[])
+{
+
+//	return testDecode();
+//	return testEncode();
+	return testCamera();
 }
 

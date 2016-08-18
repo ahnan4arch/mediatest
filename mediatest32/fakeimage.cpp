@@ -1,8 +1,11 @@
 #include "Stdafx.h"
+#include "Looper.h"
+#include "D3D9Renderer.h"
 
-void make_fake_image ( BYTE * image)
+void make_fake_i40_image ( BYTE * image, int w, int h)
 {
-	::memset(image, 0, sizeof(image));
+	::memset(image, 0, w*h*3/2);
+
 	for ( int j=0; j<240; j++)
 	{
 		for ( int i=0; i< 320; i++){
@@ -47,3 +50,5 @@ void make_fake_image ( BYTE * image)
 		}
 	}
 }
+
+
