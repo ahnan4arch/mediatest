@@ -10,6 +10,11 @@
 using namespace WinRTCSDK;
 using namespace MP;
 
+struct ICameraSink 
+{
+	virtual bool PutSurface (VideoFrameInfo & frame) = 0;
+};
+
 class Camera : public IVideoCaptureCallback, public IDeviceEventCallback
 {
 public:
@@ -42,6 +47,7 @@ public:
 		delete videoWindow_;
 		delete deviceEvents_;
 		delete vidCap_;
+		return true;
 	}
 
 public:

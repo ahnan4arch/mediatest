@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#pragma once
 #include <string>
 #include "D3D9Renderer.h"
 #include "d3d_allocator.h"

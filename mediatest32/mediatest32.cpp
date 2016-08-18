@@ -10,6 +10,7 @@
 #include "camera.h"
 #include "decode_test.h"
 #include "encode_test.h"
+#include "loopback_pipeline.h"
 
 using namespace WinRTCSDK;
 using namespace MP;

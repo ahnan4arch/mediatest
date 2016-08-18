@@ -107,9 +107,6 @@
     <ClCompile Include="..\NativeMedia\audio\WASAPIRenderer.cpp">
       <Filter>audio</Filter>
     </ClCompile>
-    <ClCompile Include="fakeimage.cpp">
-      <Filter>mediatest</Filter>
-    </ClCompile>
     <ClCompile Include="decode_test.h">
       <Filter>mediatest</Filter>
     </ClCompile>
@@ -265,9 +262,6 @@
     <ClInclude Include="encode_test.h">
       <Filter>mediatest</Filter>
     </ClInclude>
-    <ClInclude Include="loopback.h">
-      <Filter>mediatest</Filter>
-    </ClInclude>
     <ClInclude Include="dxva_renderer.h">
       <Filter>mediatest</Filter>
     </ClInclude>
@@ -278,6 +272,12 @@
       <Filter>mediatest</Filter>
     </ClInclude>
     <ClInclude Include="bitstream_buffering.h">
+      <Filter>mediatest</Filter>
+    </ClInclude>
+    <ClInclude Include="loopback_pipeline.h">
+      <Filter>mediatest</Filter>
+    </ClInclude>
+    <ClInclude Include="bitstream_io.h">
       <Filter>mediatest</Filter>
     </ClInclude>
   </ItemGroup>
