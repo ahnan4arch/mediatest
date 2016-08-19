@@ -14,6 +14,7 @@
     <ProjectGuid>{676F7638-E496-48E8-BE0E-B4F87A16BF16}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>mediatest32</RootNamespace>
+    <ProjectName>mediatest32</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -21,7 +22,7 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v110</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
-    <CLRSupport>true</CLRSupport>
+    <CLRSupport>false</CLRSupport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -53,7 +54,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions> _CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(INTELMEDIASDKROOT)\include;..\nativemedia;..\nativemedia\audio;..\nativemedia\codec;..\mediatest32</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(INTELMEDIASDKROOT)\include;..\video;..\audio;..\codec;.</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -71,7 +72,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(INTELMEDIASDKROOT)\include;..\nativemedia;..\nativemedia\audio;..\nativemedia\codec;..\mediatest32</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(INTELMEDIASDKROOT)\include;..\video;..\audio;..\codec;.</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -83,98 +84,63 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <Text Include="ReadMe.txt" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\NativeMedia\audio\AudioManager.cpp" />
-    <ClCompile Include="..\NativeMedia\audio\AudioResampler.cpp" />
-    <ClCompile Include="..\NativeMedia\audio\MicControl .cpp" />
-    <ClCompile Include="..\NativeMedia\audio\MMNotificationClient.cpp" />
-    <ClCompile Include="..\NativeMedia\audio\SessionEvents.cpp" />
-    <ClCompile Include="..\NativeMedia\audio\UTAudio.cpp" />
-    <ClCompile Include="..\NativeMedia\audio\WASAPICapture.cpp" />
-    <ClCompile Include="..\NativeMedia\audio\WASAPIRenderer.cpp" />
-    <ClCompile Include="..\NativeMedia\BaseWnd.cpp" />
-    <ClCompile Include="..\NativeMedia\codec\avc_bitstream.cpp" />
-    <ClCompile Include="..\NativeMedia\codec\avc_nal_spl.cpp" />
-    <ClCompile Include="..\NativeMedia\codec\avc_spl.cpp" />
-    <ClCompile Include="..\NativeMedia\codec\base_allocator.cpp" />
-    <ClCompile Include="..\NativeMedia\codec\d3d_allocator.cpp" />
-    <ClCompile Include="..\NativeMedia\codec\decode_pipeline.cpp" />
-    <ClCompile Include="..\NativeMedia\codec\encode_pipeline.cpp" />
-    <ClCompile Include="..\NativeMedia\codec\codec_utils.cpp" />
-    <ClCompile Include="..\NativeMedia\D3D9Renderer.cpp" />
-    <ClCompile Include="..\NativeMedia\D3DPsVideoProcessor.cpp" />
-    <ClCompile Include="..\NativeMedia\GlobalFun.cpp" />
-    <ClCompile Include="..\NativeMedia\ImageTool.cpp" />
-    <ClCompile Include="..\NativeMedia\MFVidCapture.cpp" />
-    <ClCompile Include="..\NativeMedia\NativeMedia.cpp" />
-    <ClCompile Include="..\NativeMedia\ResourceHelper.cpp" />
-    <ClCompile Include="..\NativeMedia\Stdafx.cpp">
+    <ClCompile Include="..\codec\avc_bitstream.cpp" />
+    <ClCompile Include="..\codec\avc_nal_spl.cpp" />
+    <ClCompile Include="..\codec\avc_spl.cpp" />
+    <ClCompile Include="..\codec\base_allocator.cpp" />
+    <ClCompile Include="..\codec\codec_utils.cpp" />
+    <ClCompile Include="..\codec\d3d_allocator.cpp" />
+    <ClCompile Include="..\codec\decode_pipeline.cpp" />
+    <ClCompile Include="..\codec\encode_pipeline.cpp" />
+    <ClCompile Include="..\video\BaseWnd.cpp" />
+    <ClCompile Include="..\video\D3D9Renderer.cpp" />
+    <ClCompile Include="..\video\D3DPsVideoProcessor.cpp" />
+    <ClCompile Include="..\video\ImageTool.cpp" />
+    <ClCompile Include="..\video\MFVidCapture.cpp" />
+    <ClCompile Include="..\video\Stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\NativeMedia\VideoHWND.cpp" />
-    <ClCompile Include="..\NativeMedia\VideoManager.cpp" />
-    <ClCompile Include="decode_test.h" />
+    <ClInclude Include="decode_test.h" />
     <ClCompile Include="mediatest32.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\NativeMedia\audio\AudioClientCallbacks.h" />
-    <ClInclude Include="..\NativeMedia\audio\AudioClientDataCallbacks.h" />
-    <ClInclude Include="..\NativeMedia\audio\AudioManager.h" />
-    <ClInclude Include="..\NativeMedia\audio\AudioResampler.h" />
-    <ClInclude Include="..\NativeMedia\audio\MicControl.h" />
-    <ClInclude Include="..\NativeMedia\audio\MMNotificationClient.h" />
-    <ClInclude Include="..\NativeMedia\audio\ResampleInterpTabs.h" />
-    <ClInclude Include="..\NativeMedia\audio\SessionEvents.h" />
-    <ClInclude Include="..\NativeMedia\audio\WASAPICapture.h" />
-    <ClInclude Include="..\NativeMedia\audio\WASAPIComPtrDefs.h" />
-    <ClInclude Include="..\NativeMedia\audio\WASAPIRenderer.h" />
-    <ClInclude Include="..\NativeMedia\audio\WavHelper.h" />
-    <ClInclude Include="..\NativeMedia\AutoLock.h" />
-    <ClInclude Include="..\NativeMedia\BaseWnd.h" />
-    <ClInclude Include="..\NativeMedia\BlockingQueue.h" />
-    <ClInclude Include="..\NativeMedia\CamControl.h" />
-    <ClInclude Include="..\NativeMedia\codec\abstract_splitter.h" />
-    <ClInclude Include="..\NativeMedia\codec\avc_bitstream.h" />
-    <ClInclude Include="..\NativeMedia\codec\avc_headers.h" />
-    <ClInclude Include="..\NativeMedia\codec\avc_nal_spl.h" />
-    <ClInclude Include="..\NativeMedia\codec\avc_spl.h" />
-    <ClInclude Include="..\NativeMedia\codec\avc_structures.h" />
-    <ClInclude Include="..\NativeMedia\codec\base_allocator.h" />
-    <ClInclude Include="..\NativeMedia\codec\d3d_allocator.h" />
-    <ClInclude Include="..\NativeMedia\codec\decode_pipeline.h" />
-    <ClInclude Include="..\NativeMedia\codec\encode_pipeline.h" />
-    <ClInclude Include="..\NativeMedia\codec\codec_defs.h" />
-    <ClInclude Include="..\NativeMedia\codec\codec_utils.h" />
-    <ClInclude Include="..\NativeMedia\codec\sys_primitives.h" />
-    <ClInclude Include="..\NativeMedia\codec\time_statistics.h" />
-    <ClInclude Include="..\NativeMedia\ComPtrDefs.h" />
-    <ClInclude Include="..\NativeMedia\D3D9Renderer.h" />
-    <ClInclude Include="..\NativeMedia\D3DPsVideoProcessor.h" />
-    <ClInclude Include="..\NativeMedia\DeviceEvents.h" />
-    <ClInclude Include="..\NativeMedia\GlobalFun.h" />
-    <ClInclude Include="..\NativeMedia\ImageTool.h" />
-    <ClInclude Include="..\NativeMedia\Looper.h" />
-    <ClInclude Include="..\NativeMedia\MFVidCapture.h" />
-    <ClInclude Include="..\NativeMedia\MultipleBuffering.h" />
-    <ClInclude Include="..\NativeMedia\NativeMedia.h" />
-    <ClInclude Include="..\NativeMedia\NativeMediaCallbacks.h" />
-    <ClInclude Include="..\NativeMedia\NativeMediaLog.h" />
-    <ClInclude Include="..\NativeMedia\ResourceHelper.h" />
-    <ClInclude Include="..\NativeMedia\Stdafx.h" />
-    <ClInclude Include="..\NativeMedia\VideoHWND.h" />
-    <ClInclude Include="..\NativeMedia\VideoManager.h" />
-    <ClInclude Include="..\NativeMedia\Win32Event.h" />
-    <ClInclude Include="..\NativeMedia\WinRTCSDKTypes.h" />
+    <ClInclude Include="..\codec\abstract_splitter.h" />
+    <ClInclude Include="..\codec\avc_bitstream.h" />
+    <ClInclude Include="..\codec\avc_headers.h" />
+    <ClInclude Include="..\codec\avc_nal_spl.h" />
+    <ClInclude Include="..\codec\avc_spl.h" />
+    <ClInclude Include="..\codec\avc_structures.h" />
+    <ClInclude Include="..\codec\base_allocator.h" />
+    <ClInclude Include="..\codec\codec_defs.h" />
+    <ClInclude Include="..\codec\codec_utils.h" />
+    <ClInclude Include="..\codec\d3d_allocator.h" />
+    <ClInclude Include="..\codec\decode_pipeline.h" />
+    <ClInclude Include="..\codec\encode_pipeline.h" />
+    <ClInclude Include="..\codec\sys_primitives.h" />
+    <ClInclude Include="..\codec\time_statistics.h" />
+    <ClInclude Include="..\video\AutoLock.h" />
+    <ClInclude Include="..\video\BaseWnd.h" />
+    <ClInclude Include="..\video\BlockingQueue.h" />
+    <ClInclude Include="..\video\CamControl.h" />
+    <ClInclude Include="..\video\ComPtrDefs.h" />
+    <ClInclude Include="..\video\D3D9Renderer.h" />
+    <ClInclude Include="..\video\D3DPsVideoProcessor.h" />
+    <ClInclude Include="..\video\DeviceEvents.h" />
+    <ClInclude Include="..\video\ImageTool.h" />
+    <ClInclude Include="..\video\Looper.h" />
+    <ClInclude Include="..\video\MFVidCapture.h" />
+    <ClInclude Include="..\video\MultipleBuffering.h" />
+    <ClInclude Include="..\video\NativeMediaLog.h" />
+    <ClInclude Include="..\video\Stdafx.h" />
+    <ClInclude Include="..\video\Win32Event.h" />
     <ClInclude Include="bitstream_buffering.h" />
-    <ClInclude Include="bitstream_io.h" />
     <ClInclude Include="camera.h" />
     <ClInclude Include="dxva_processor.h" />
     <ClInclude Include="dxva_renderer.h" />
     <ClInclude Include="encode_test.h" />
-    <ClInclude Include="loopback_pipeline.h" />
+    <ClInclude Include="loopback_test.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="bitstream_if.h" />
     <ClInclude Include="va_interface.h" />
   </ItemGroup>
   <ItemGroup>
@@ -183,6 +149,12 @@
     <Reference Include="System" />
     <Reference Include="System.Xaml" />
     <Reference Include="WindowsBase" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="mediatest32.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

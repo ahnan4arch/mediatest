@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bitstream_io.h"
+#include "bitstream_if.h"
 
 #include "MultipleBuffering.h"
 #include "codec_utils.h"
@@ -10,7 +10,11 @@ class BitstreamBuffering : public IBitstreamSink, IBitstreamSource
 {
 
 public:
-	BitstreamBuffering (int poolSize)
+	BitstreamBuffering ()
+	{
+	}
+
+	void Init (int poolSize)
 	{
 		size_ = poolSize;
 		pool_ = new mfxBitstream[size_];
@@ -53,7 +57,7 @@ public:
 	}
 
 	// unblock both consumer and producer thread
-	void shutdown()
+	void Shutdown()
 	{
 		buffering_.unblockWaitingThreads();
 	}

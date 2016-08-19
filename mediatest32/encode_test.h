@@ -1,8 +1,6 @@
 
 #pragma once
 
-#include "stdafx.h"
-
 #include <string>
 #include "encode_pipeline.h"
 #include "D3D9Renderer.h"
@@ -20,21 +18,72 @@ public:
 	EncodeTest ():dispatcher_("DecodeTest"),params_(),pipeline_(), processor_(NULL)
 	{
 	}
-	void init()
+
+	void Init( DXVAProcessor* processor, IBitstreamSink* pSink,
+		int w, int h, int frNumerator, int frDenomerator, bool loopBack)
 	{
-		processor_.Init();
+		processor_ = processor;
+		pSink_ = pSink;
+
+
+		// default implementation
+		params_.bUseHWLib = true;
+		params_.nAsyncDepth = 4;
+		params_.nGopRefDist=1;
+		params_.CodecId = MFX_CODEC_AVC;
+		params_.nTargetUsage = MFX_TARGETUSAGE_BALANCED;
+		params_.nDstWidth =w;
+		params_.nDstHeight =h;
+		params_.nFrameRateExtN = frNumerator;
+		params_.nFrameRateExtD = frDenomerator;
+		
+		params_.bLoopBack = true;
+
+		// calculate default bitrate based on the resolution (a parameter for encoder, so Dst resolution is used)
+		mfxF64 dFrameRate = CalculateFrameRate (params_.nFrameRateExtN, params_.nFrameRateExtD);
+
+		params_.nBitRate = CalculateDefaultBitrate(params_.CodecId, 
+			params_.nTargetUsage, params_.nDstWidth,
+			params_.nDstHeight, dFrameRate);
+
+		wcscpy_s(params_.strSrcFile, L"d:\\test_en.yuv");
+		wcscpy_s(params_.strDstFile, L"d:\\test_en.h264");
+
+
 	}
+
 	void UnInit()
 	{
-		processor_.UnInit();
+		processor_ =NULL;
+		pSink_ = NULL;
 	}
+
+
+
+	void Start ()
+	{
+		dispatcher_.startUp();
+		LooperTask t = [=](){ TestProc();};
+		dispatcher_.runAsyncTask(t);
+	}
+
+	void Stop()
+	{
+		pipeline_.Stop();
+	}
+
+	void Join()
+	{
+		dispatcher_.stopAndJoin();
+	}
+private:
+	
 	int TestProc()
 	{
 
 		msdk_printf(MSDK_STRING("Encoding started\n"));
-		SetupParam (&params_);
 		
-		mfxStatus sts = pipeline_.Init(&params_, &processor_);
+		mfxStatus sts = pipeline_.Init(&params_, processor_, pSink_);
 		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, 1);
 
 		// print stream info
@@ -45,52 +94,11 @@ public:
 		return 0;
 	}
 
-	void start ()
-	{
-		dispatcher_.startUp();
-		LooperTask t = [=](){ TestProc();};
-		dispatcher_.runAsyncTask(t);
-	}
-
-	void stop()
-	{
-		dispatcher_.stopAndJoin();
-	}
-
 private:
-
-	void SetupParam(EncodeParams *pParams )
-	{
-		// default implementation
-		pParams->bUseHWLib = true;
-		pParams->nDstWidth =1280;
-		pParams->nDstHeight =720;
-		pParams->nAsyncDepth = 4;
-		pParams->nGopRefDist=1;
-		pParams->CodecId = MFX_CODEC_AVC;
-		pParams->nTargetUsage = MFX_TARGETUSAGE_BALANCED;
-		pParams->nFrameRateExtN = 30;
-		pParams->nFrameRateExtD = 1;
-
-
-		// calculate default bitrate based on the resolution (a parameter for encoder, so Dst resolution is used)
-		mfxF64 dFrameRate = CalculateFrameRate (pParams->nFrameRateExtN, pParams->nFrameRateExtD);
-
-		pParams->nBitRate = CalculateDefaultBitrate(pParams->CodecId, 
-			pParams->nTargetUsage, pParams->nDstWidth,
-			pParams->nDstHeight, dFrameRate);
-
-
-		wcscpy_s(params_.strSrcFile, L"d:\\test_en.yuv");
-		wcscpy_s(params_.strDstFile, L"d:\\test_en.h264");
-
-	}
-
-private:
-
 	Looper              dispatcher_;
-    EncodeParams        params_;   // input parameters from command line
+    EncInitParams       params_;   // input parameters from command line
     CEncodingPipeline   pipeline_; // pipeline for decoding, includes input file reader, decoder and output file writer
-	DXVAProcessor       processor_;
-
+	
+	DXVAProcessor*      processor_;
+	IBitstreamSink*     pSink_;  // for loopbabck test
 };

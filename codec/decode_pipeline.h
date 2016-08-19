@@ -13,6 +13,7 @@
 
 // interface for MP
 #include "va_interface.h"
+#include "bitstream_if.h"
 
 #include "codec_defs.h"
 #include "codec_utils.h"
@@ -25,6 +26,24 @@
 
 using namespace WinRTCSDK;
 
+
+struct DecInitParams
+{
+    mfxU32 videoType;
+    bool    bUseHWLib; // true if application wants to use HW mfx library
+    mfxU32  nMaxFPS; //rendering limited by certain fps
+    mfxU16  nAsyncDepth; // asyncronous queue
+    msdk_char     strSrcFile[MSDK_MAX_FILENAME_LEN];
+    msdk_char     strDstFile[MSDK_MAX_FILENAME_LEN];
+	
+	bool   bLoopback; // loopback test mode
+
+    DecInitParams()
+    {
+        MSDK_ZERO_MEMORY(*this);
+    }
+};
+
 struct IOFrameSurface
 {
 	IOFrameSurface() 
@@ -35,21 +54,6 @@ struct IOFrameSurface
     msdk_tick         submit;  // the time when submitting to codec
 	mfxU16            renderLock;  // locked for render
 	mfxSyncPoint      syncPoint;
-};
-
-struct DecodeParams
-{
-    mfxU32 videoType;
-    bool    bUseHWLib; // true if application wants to use HW mfx library
-    mfxU32  nMaxFPS; //rendering limited by certain fps
-    mfxU16  nAsyncDepth; // asyncronous queue
-    msdk_char     strSrcFile[MSDK_MAX_FILENAME_LEN];
-    msdk_char     strDstFile[MSDK_MAX_FILENAME_LEN];
-
-    DecodeParams()
-    {
-        MSDK_ZERO_MEMORY(*this);
-    }
 };
 
 struct CPipelineStatistics
@@ -88,15 +92,15 @@ public:
     CDecodingPipeline();
     ~CDecodingPipeline();
 	mfxStatus Run();
-    mfxStatus Init(DecodeParams *pParams, MP::IDXVAVideoRender* pRender);
+    mfxStatus Init(DecInitParams *pParams, MP::IDXVAVideoRender* pRender);
     mfxStatus RunDecoding();
     void Close();
-    mfxStatus ResetDecoder(DecodeParams *pParams);
-
+    mfxStatus ResetDecoder(DecInitParams *pParams);
+	void      Stop () { m_StopFlag = true;}
     void PrintInfo();
 
 protected: // functions
-    mfxStatus InitMfxParams(DecodeParams *pParams);
+    mfxStatus InitMfxParams(DecInitParams *pParams);
     mfxStatus AllocFrames();
     void DeleteFrames();
 
@@ -148,8 +152,8 @@ protected: // variables
     std::vector<msdk_tick>  m_vLatency;
 
 	MP::IDXVAVideoRender*   m_pRender;
-	DecodeParams            m_Params;
-	bool                    m_stopFlag;
+	DecInitParams            m_Params;
+	bool                    m_StopFlag;
 private:
     CDecodingPipeline(const CDecodingPipeline&);
     void operator=(const CDecodingPipeline&);

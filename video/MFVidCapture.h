@@ -4,7 +4,6 @@
 
 #include "AutoLock.h"
 #include "ComPtrDefs.h"
-#include "WinRTCSDKTypes.h"
 #include "Looper.h"
 #include "D3D9Renderer.h"
 
@@ -13,6 +12,38 @@
 using namespace std;
 
 namespace WinRTCSDK {
+enum  MediaDevType
+{
+	eAudioCapture,
+	eAudioRender,
+	eVideoCapture,
+	eOtherDevice
+};
+
+////////////////////////////////////////////////////////
+// Native types only used in c++ code in this module
+struct MediaDevInfo
+{
+	std::wstring symbolicLink; // dev symbolic link
+	std::wstring devFriendlyName;
+	MediaDevType devType;
+	struct {
+		std::wstring devInterfaceName; // the audio adapter name, used to check homologous device	
+		std::wstring containerId; // dev enclosure ID, for audio devices, used to check homologous device
+		uint32_t     formFactor; // please refer to EndpointFormFactor in Mmdeviceapi.h
+		bool         bConsoleRole;
+		bool         bMultimediaRole;
+		bool         bCommunicationsRole;
+	} audioDevInfo;
+
+	MediaDevInfo(){
+		audioDevInfo.formFactor = 0;
+		audioDevInfo.bConsoleRole = false;
+		audioDevInfo.bMultimediaRole = false;
+		audioDevInfo.bCommunicationsRole = false;
+	}
+};
+
 
 struct VideoCaptureFormat
 {
@@ -74,6 +105,7 @@ public:
 	HRESULT        CloseCamera();
 	VOID           SetD3DDevManager( _com_ptr_IDirect3DDeviceManager9 pD3D9Mgr);
 
+	void           GetCapFormat(VideoCaptureFormat&fmt) {fmt = capfmt_;}
 private:
 	static std::string _GetFmtName( GUID fmt);
 	HRESULT        _GetFormatFromMediaType( VideoCaptureFormat& fmt, _com_ptr_IMFMediaType type);
@@ -112,6 +144,7 @@ private:
 	bool                                asyncMode_; // async read mode.
 	bool                                isWindows7_;
 	CameraControl                       cameraControl_;
+	VideoCaptureFormat                  capfmt_;
 };
 
 ////////////// This is helper class to access locked media buffer

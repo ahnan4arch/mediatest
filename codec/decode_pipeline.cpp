@@ -35,7 +35,7 @@ CDecodingPipeline::CDecodingPipeline()
     m_bPrintLatency = false;
 
     m_nMaxFps = 0;
-	m_stopFlag = false;
+	m_StopFlag = false;
 
     m_vLatency.reserve(1000); // reserve some space to reduce dynamic reallocation impact on pipeline execution
 
@@ -46,14 +46,14 @@ CDecodingPipeline::~CDecodingPipeline()
     Close();
 }
 
-mfxStatus CDecodingPipeline::Init(DecodeParams *pParams, MP::IDXVAVideoRender* pRender)
+mfxStatus CDecodingPipeline::Init(DecInitParams *pParams, MP::IDXVAVideoRender* pRender)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
 	m_Params=*pParams;
 
 	// va interface
 	m_pRender = pRender;
-	m_stopFlag = false;
+	m_StopFlag = false;
     mfxStatus sts = MFX_ERR_NONE;
 
     // prepare input stream file reader
@@ -181,7 +181,7 @@ void CDecodingPipeline::Close()
     return;
 }
 
-mfxStatus CDecodingPipeline::InitMfxParams(DecodeParams *pParams)
+mfxStatus CDecodingPipeline::InitMfxParams(DecInitParams *pParams)
 {
     MSDK_CHECK_POINTER(m_pmfxDEC, MFX_ERR_NULL_PTR);
     mfxStatus sts = MFX_ERR_NONE;
@@ -314,7 +314,7 @@ void CDecodingPipeline::DeleteFrames()
     return;
 }
 
-mfxStatus CDecodingPipeline::ResetDecoder(DecodeParams *pParams)
+mfxStatus CDecodingPipeline::ResetDecoder(DecInitParams *pParams)
 {
     mfxStatus sts = MFX_ERR_NONE;
 	m_Params = *pParams;
@@ -575,7 +575,7 @@ mfxStatus CDecodingPipeline::RunDecoding()
             break;
         }
 
-		if (m_nFrames < m_output_count || m_stopFlag)
+		if (m_nFrames < m_output_count || m_StopFlag)
 		{
 			break;
 		}
@@ -748,7 +748,7 @@ mfxStatus CDecodingPipeline::Run()
 {
 	mfxStatus sts = MFX_ERR_NONE; // return value check
 
-    for (;;)
+    while (!m_StopFlag)
     {
         sts = RunDecoding();
 

@@ -31,7 +31,7 @@ MFVidCapture::MFVidCapture(IVideoCaptureCallback *callback):
 		// we use async mode on windows 7 only
 		// asyncMode_ = true;
 		isWindows7_ = true;
-		NativeMediaLogger::log(LogLevel::Info, "Camera", "Windows7 using async mode");
+		NativeMediaLogger4CPP::log(LogLevel::Info, "Camera", "Windows7 using async mode");
 	}
 }
 
@@ -538,7 +538,7 @@ done:
 	frameHeight_ = fmt.height;
 	maxFSNumerator_= fmt.fsNumerator;
 	maxFSDenominator_= fmt.fsDenominator;
-
+	capfmt_ = fmt;
 	if (SUCCEEDED(hr)){
 		_GetDefaultStride(pUsedType, &defaultStride_);
 	}

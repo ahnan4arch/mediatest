@@ -1,42 +1,14 @@
 #pragma once
 #include <string>
 #include <stdarg.h>
-#include "WinRTCSDKTypes.h"
 
-using System::String;
-using System::Runtime::InteropServices::Marshal;
-
-namespace WinRTCSDK
-{
-
-public enum LogLevel{
-	Error=0, Warning, Info, Debug
-};
-
-public ref class NativeMediaLogger 
-{
-private:
-	static LoggerDelegate ^ logDelegate_ = nullptr;
-public:
-	static void setLogDelegate (LoggerDelegate ^ logDelegate) { logDelegate_ = logDelegate; }
-	static void log (int level, String^ tag, String^ logstr){
-		if (logDelegate_!=nullptr)logDelegate_(level, tag, logstr);
-	}
-	static void log (int level, std::string tag, std::string logstr){
-		if (logDelegate_!=nullptr){
-			logDelegate_(level, gcnew String(tag.c_str()), gcnew String (logstr.c_str()) );
-		}
-	}
-
-	static void logW (int level, std::wstring tag, std::wstring logstr){
-		if (logDelegate_!=nullptr){
-			logDelegate_(level, gcnew String(tag.c_str()), gcnew String (logstr.c_str()) );
-		}
-	}
-
-};
 
 #pragma warning( disable: 4793) 
+namespace WinRTCSDK
+{
+enum LogLevel{
+	Error=0, Warning, Info, Debug
+};
 
 class NativeMediaLogger4CPP
 {
@@ -87,10 +59,10 @@ public:
 
 private:
 	static void __log_thunck (int level, std::string tag, char* log){
-		NativeMediaLogger::log(level, tag, log );
+		//NativeMediaLogger::log(level, tag, log );
 	}
 	static void __log_thunckW (int level, std::wstring tag, wchar_t* log){
-		NativeMediaLogger::logW(level, tag, log );
+		//NativeMediaLogger::logW(level, tag, log );
 	}
 };
 

@@ -17,7 +17,8 @@ CEncTaskPool::~CEncTaskPool()
     Close();
 }
 
-mfxStatus CEncTaskPool::Init(MFXVideoSession* pmfxSession, CSmplBitstreamWriter* pWriter, mfxU32 nPoolSize, mfxU32 nBufferSize )
+mfxStatus CEncTaskPool::Init(MFXVideoSession* pmfxSession, CSmplBitstreamWriter* pWriter,IBitstreamSink *pSink,
+							 mfxU32 nPoolSize, mfxU32 nBufferSize )
 {
     MSDK_CHECK_POINTER(pmfxSession, MFX_ERR_NULL_PTR);
     MSDK_CHECK_POINTER(pWriter, MFX_ERR_NULL_PTR);
@@ -25,17 +26,18 @@ mfxStatus CEncTaskPool::Init(MFXVideoSession* pmfxSession, CSmplBitstreamWriter*
     MSDK_CHECK_ERROR(nPoolSize, 0, MFX_ERR_UNDEFINED_BEHAVIOR);
     MSDK_CHECK_ERROR(nBufferSize, 0, MFX_ERR_UNDEFINED_BEHAVIOR);
 
-
     m_pmfxSession = pmfxSession;
+	m_pWriter = pWriter;
+	m_pBitstreamSink = pSink;
     m_nPoolSize = nPoolSize;
 
-    m_pTasks = new sTask [m_nPoolSize];
+    m_pTasks = new EncTask [m_nPoolSize];
     MSDK_CHECK_POINTER(m_pTasks, MFX_ERR_MEMORY_ALLOC);
 
     mfxStatus sts = MFX_ERR_NONE;
     for (mfxU32 i = 0; i < m_nPoolSize; i++)
     {
-        sts = m_pTasks[i].Init(nBufferSize, pWriter);
+        sts = m_pTasks[i].Init(nBufferSize);
         MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
     }
 
@@ -58,12 +60,16 @@ mfxStatus CEncTaskPool::SynchronizeFirstTask()
         if (MFX_ERR_NONE == sts)
         {
             m_statFile.StartTimeMeasurement();
-            sts = m_pTasks[m_nTaskBufferStart].WriteBitstream();
+
+			if (m_pWriter)
+			{
+				sts = m_pWriter->WriteNextFrame(&m_pTasks[m_nTaskBufferStart].mfxBS);
+			}
+
             m_statFile.StopTimeMeasurement();
             MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-            sts = m_pTasks[m_nTaskBufferStart].Reset();
-            MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+            m_pTasks[m_nTaskBufferStart].Reset();
 
             // move task buffer start to the next executing task
             // the first transform frame to the right with non zero sync point
@@ -108,7 +114,7 @@ mfxU32 CEncTaskPool::GetFreeTaskIndex()
     return (m_nTaskBufferStart + off) % m_nPoolSize;
 }
 
-mfxStatus CEncTaskPool::GetFreeTask(sTask **ppTask)
+mfxStatus CEncTaskPool::GetFreeTask(EncTask **ppTask)
 {
     MSDK_CHECK_POINTER(ppTask, MFX_ERR_NULL_PTR);
     MSDK_CHECK_POINTER(m_pTasks, MFX_ERR_NOT_INITIALIZED);
@@ -143,59 +149,7 @@ void CEncTaskPool::Close()
     m_nPoolSize = 0;
 }
 
-sTask::sTask()
-    : EncSyncP(0)
-    , pWriter(NULL)
-{
-    MSDK_ZERO_MEMORY(mfxBS);
-}
-
-mfxStatus sTask::Init(mfxU32 nBufferSize, CSmplBitstreamWriter *pwriter)
-{
-    Close();
-
-    pWriter = pwriter;
-
-    mfxStatus sts = Reset();
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-    sts = InitMfxBitstream(&mfxBS, nBufferSize);
-    MSDK_CHECK_RESULT_SAFE(sts, MFX_ERR_NONE, sts, WipeMfxBitstream(&mfxBS));
-
-    return sts;
-}
-
-mfxStatus sTask::Close()
-{
-    WipeMfxBitstream(&mfxBS);
-    EncSyncP = 0;
-
-    return MFX_ERR_NONE;
-}
-
-mfxStatus sTask::WriteBitstream()
-{
-    if (!pWriter)
-        return MFX_ERR_NOT_INITIALIZED;
-
-    return pWriter->WriteNextFrame(&mfxBS);
-}
-
-mfxStatus sTask::Reset()
-{
-    // mark sync point as free
-    EncSyncP = NULL;
-
-    // prepare bit stream
-    mfxBS.DataOffset = 0;
-    mfxBS.DataLength = 0;
-
-
-    return MFX_ERR_NONE;
-}
-
-
-mfxStatus CEncodingPipeline::InitMfxEncParams(EncodeParams *pInParams)
+mfxStatus CEncodingPipeline::InitMfxEncParams(EncInitParams *pInParams)
 {
     m_mfxEncParams.mfx.CodecId                 = pInParams->CodecId;
     m_mfxEncParams.mfx.TargetUsage             = pInParams->nTargetUsage; // trade-off between quality and speed
@@ -320,13 +274,14 @@ CEncodingPipeline::~CEncodingPipeline()
     Close();
 }
 
-mfxStatus CEncodingPipeline::Init(EncodeParams *pParams, MP::IDXVAVideoProcessor* pDXVAProcessor)
+mfxStatus CEncodingPipeline::Init(EncInitParams *pParams, MP::IDXVAVideoProcessor* pDXVAProcessor, IBitstreamSink *pSink)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
     MSDK_CHECK_POINTER(pDXVAProcessor, MFX_ERR_NULL_PTR);
 
-	m_pDXVAProcessor = pDXVAProcessor;
 	m_Params = *pParams;
+	m_pDXVAProcessor = pDXVAProcessor;
+	m_pBitstreamSink = pSink;
 
     mfxStatus sts = MFX_ERR_NONE;
 
@@ -413,7 +368,7 @@ void CEncodingPipeline::Close()
 
 }
 
-mfxStatus CEncodingPipeline::ResetMFXComponents(EncodeParams* pParams)
+mfxStatus CEncodingPipeline::ResetMFXComponents(EncInitParams* pParams)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
     MSDK_CHECK_POINTER(m_pmfxENC, MFX_ERR_NOT_INITIALIZED);
@@ -441,8 +396,12 @@ mfxStatus CEncodingPipeline::ResetMFXComponents(EncodeParams* pParams)
 
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
+	// now init the task pool
     mfxU32 nEncodedDataBufferSize = m_mfxEncParams.mfx.FrameInfo.Width * m_mfxEncParams.mfx.FrameInfo.Height * 4;
-    sts = m_TaskPool.Init(&m_mfxSession, m_FileWriter, m_mfxEncParams.AsyncDepth, nEncodedDataBufferSize);
+    
+	sts = m_TaskPool.Init(&m_mfxSession, m_FileWriter,m_pBitstreamSink,
+		m_mfxEncParams.AsyncDepth, nEncodedDataBufferSize);
+
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
     return MFX_ERR_NONE;
@@ -467,7 +426,7 @@ mfxStatus CEncodingPipeline::AllocateSufficientBuffer(mfxBitstream* pBS)
     return MFX_ERR_NONE;
 }
 
-mfxStatus CEncodingPipeline::GetFreeTask(sTask **ppTask)
+mfxStatus CEncodingPipeline::GetFreeTask(EncTask **ppTask)
 {
     mfxStatus sts = MFX_ERR_NONE;
 
@@ -486,7 +445,9 @@ mfxStatus CEncodingPipeline::GetFreeTask(sTask **ppTask)
 
 mfxStatus CEncodingPipeline::Run()
 {
-    for (;;)
+	m_StopFlag = false;
+
+    while(!m_StopFlag)
     {
         mfxStatus sts = RunEncoding();
 
@@ -513,7 +474,7 @@ mfxStatus CEncodingPipeline::Run()
 // input captured frame
 bool  CEncodingPipeline::Input (void * pSurface/*d3d9surface*/)
 {
-	if ( !m_bLoopBack) return false; // not in loopback mode, data is input from a file
+	if ( !m_Params.bLoopBack) return false; // not in loopback mode, data is input from a file
 
 	MP::VideoFrameData src;
 	MP::VideoFrameData dst;
@@ -521,7 +482,7 @@ bool  CEncodingPipeline::Input (void * pSurface/*d3d9surface*/)
 	src.pSurface = pSurface;
 
 	mfxU16 nEncSurfIdx =MSDK_INVALID_SURF_IDX;
-	if ( !m_bLoopBack)
+	if ( !m_Params.bLoopBack)
 	{ // not in loopback mode, data is input from a file
 
 		// find free surface for encoder input
@@ -544,7 +505,7 @@ bool  CEncodingPipeline::Input (void * pSurface/*d3d9surface*/)
 mfxU16  CEncodingPipeline::GetNextSurface ()
 {
 	mfxU16 nEncSurfIdx =MSDK_INVALID_SURF_IDX;
-	if ( !m_bLoopBack)
+	if ( !m_Params.bLoopBack)
 	{ // not in loopback mode, data is input from a file
 
 		// find free surface for encoder input
@@ -591,7 +552,7 @@ mfxStatus CEncodingPipeline::RunEncoding()
 
     mfxFrameSurface1* pSurf = NULL; // dispatching pointer
 
-    sTask *pCurrentTask = NULL; // a pointer to the current task
+    EncTask *pCurrentTask = NULL; // a pointer to the current task
     mfxU16 nEncSurfIdx = 0;     // index of free surface for encoder input (vpp output)
 
     sts = MFX_ERR_NONE;
@@ -599,6 +560,8 @@ mfxStatus CEncodingPipeline::RunEncoding()
     // main loop, preprocessing and encoding
     while (MFX_ERR_NONE <= sts || MFX_ERR_MORE_DATA == sts)
     {
+		if ( m_StopFlag ) break; // stop the loop
+
         // get a pointer to a free task (bit stream and sync point for encoder)
         sts = GetFreeTask(&pCurrentTask);
         MSDK_BREAK_ON_ERROR(sts);

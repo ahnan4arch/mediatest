@@ -4,7 +4,6 @@
 #include <vector>
 #include <memory>
 
-
 #include "codec_defs.h"
 #include "codec_utils.h"
 #include "base_allocator.h"
@@ -12,6 +11,7 @@
 
 #include "autolock.h"
 #include "va_interface.h"
+#include "bitstream_if.h"
 
 #include "mfxmvc.h"
 #include "mfxvideo.h"
@@ -23,7 +23,7 @@
 
 #define TIME_STATS
 
-struct EncodeParams
+struct EncInitParams
 {
     mfxU16 nTargetUsage;
     mfxU32 CodecId;
@@ -44,17 +44,40 @@ struct EncodeParams
 	bool bLoopBack;
 };
 
-struct sTask
+struct EncTask
 {
     mfxBitstream mfxBS;
     mfxSyncPoint EncSyncP;
-    CSmplBitstreamWriter *pWriter;
 
-    sTask();
-    mfxStatus WriteBitstream();
-    mfxStatus Reset();
-    mfxStatus Init(mfxU32 nBufferSize, CSmplBitstreamWriter *pWriter = NULL);
-    mfxStatus Close();
+	EncTask(): EncSyncP(0)
+	{
+		MSDK_ZERO_MEMORY(mfxBS);
+	}
+
+	mfxStatus Init(mfxU32 nBufferSize)
+	{
+		Close();
+		Reset();
+		mfxStatus sts = InitMfxBitstream(&mfxBS, nBufferSize);
+		MSDK_CHECK_RESULT_SAFE(sts, MFX_ERR_NONE, sts, WipeMfxBitstream(&mfxBS));
+		return sts;
+	}
+
+	mfxStatus Close()
+	{
+		WipeMfxBitstream(&mfxBS);
+		EncSyncP = 0;
+		return MFX_ERR_NONE;
+	}
+
+	void Reset()
+	{
+		// mark sync point as free
+		EncSyncP = NULL;
+		// prepare bit stream
+		mfxBS.DataOffset = 0;
+		mfxBS.DataLength = 0;
+	}
 };
 
 class CEncTaskPool
@@ -63,15 +86,18 @@ public:
     CEncTaskPool();
     ~CEncTaskPool();
 
-    mfxStatus Init(MFXVideoSession* pmfxSession, CSmplBitstreamWriter* pWriter, mfxU32 nPoolSize, mfxU32 nBufferSize);
-    mfxStatus GetFreeTask(sTask **ppTask);
+    mfxStatus Init(MFXVideoSession* pmfxSession, CSmplBitstreamWriter* pWriter, IBitstreamSink *pSink,
+		mfxU32 nPoolSize, mfxU32 nBufferSize);
+    mfxStatus GetFreeTask(EncTask **ppTask);
     mfxStatus SynchronizeFirstTask();
 
     CTimeStatistics& GetOverallStatistics() { return m_statOverall;}
     CTimeStatistics& GetFileStatistics() { return m_statFile;}
     void Close();
 protected:
-    sTask* m_pTasks;
+    CSmplBitstreamWriter *m_pWriter;
+	IBitstreamSink *m_pBitstreamSink;
+    EncTask* m_pTasks;
     mfxU32 m_nPoolSize;
     mfxU32 m_nTaskBufferStart;
 
@@ -89,24 +115,26 @@ public:
     CEncodingPipeline();
     ~CEncodingPipeline();
 
-    mfxStatus Init(EncodeParams *pParams, MP::IDXVAVideoProcessor* pDXVAProcessor );
+    mfxStatus Init(EncInitParams *pParams, MP::IDXVAVideoProcessor* pDXVAProcessor,IBitstreamSink *pSink );
     mfxStatus Run();
     void      Close();
-    mfxStatus ResetMFXComponents(EncodeParams* pParams);
+    mfxStatus ResetMFXComponents(EncInitParams* pParams);
     void      PrintInfo();
 	bool      Input (void * pSurface/*d3d9surface*/); 
-
+	void      Stop () { m_StopFlag = true;}
 private:
 
 	mfxStatus RunEncoding();
-    mfxStatus InitMfxEncParams(EncodeParams *pParams);
+    mfxStatus InitMfxEncParams(EncInitParams *pParams);
 	mfxStatus AllocFrames();
     void      DeleteFrames();
     mfxStatus AllocateSufficientBuffer(mfxBitstream* pBS);
-    mfxStatus GetFreeTask(sTask **ppTask);
+    mfxStatus GetFreeTask(EncTask **ppTask);
 	mfxU16    GetNextSurface ();
 
 private:
+
+	IBitstreamSink *          m_pBitstreamSink;
     CSmplBitstreamWriter *    m_FileWriter;
     CSmplYUVReader            m_FileReader;
     CEncTaskPool              m_TaskPool;
@@ -132,12 +160,12 @@ private:
     // external parameters for each component are stored in a vector
     std::vector<mfxExtBuffer*>   m_EncExtParams;
 
-	bool						 m_bLoopBack;//loopback test mode.
+	bool                         m_StopFlag;
 
     CTimeStatistics m_statOverall;
     CTimeStatistics m_statFile;
 
-	EncodeParams    m_Params;
+	EncInitParams    m_Params;
 	// The DXVA interface
 	MP::IDXVAVideoProcessor* m_pDXVAProcessor;
 };

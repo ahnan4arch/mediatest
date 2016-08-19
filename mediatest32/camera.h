@@ -15,7 +15,7 @@ struct ICameraSink
 	virtual bool PutSurface (VideoFrameInfo & frame) = 0;
 };
 
-class Camera : public IVideoCaptureCallback, public IDeviceEventCallback
+class Camera : public IVideoCaptureCallback
 {
 public:
 	Camera(int w, int h):render_(),width_(w),height_(h)
@@ -34,9 +34,6 @@ public:
 		// camera using DXVA now
 		vidCap_ = new MFVidCapture(this);
 
-		// device event manager
-		deviceEvents_ = new DeviceEvents(this);
-		deviceEvents_->Startup();
 
 		return true;
 		
@@ -45,10 +42,25 @@ public:
 	bool UnInit()
 	{
 		delete videoWindow_;
-		delete deviceEvents_;
 		delete vidCap_;
 		return true;
 	}
+
+	bool AddSink (ICameraSink* sink)
+	{
+		WinRTCSDK::AutoLock l (m_lock);
+		m_SinkList.push_back(sink);
+		return true;
+	}
+
+	bool RemoveSink(ICameraSink* sink)
+	{
+		WinRTCSDK::AutoLock l (m_lock);
+		auto pred = [=](ICameraSink* item)->bool { return item == sink ;};
+		std::remove_if(m_SinkList.begin(), m_SinkList.end(), pred);
+		return true;
+	}
+
 
 public:
 	virtual _com_ptr_IDirect3DDeviceManager9 GetDeviceManager() 
@@ -71,53 +83,12 @@ public:
 
 		// draw preview
 		render_.DrawVideo("testvid", frame);
-		return;
 
-		// put video frame to data store (in RTCSDK), for software encoder	
-		//if ( frame.pSample )
-		//{
-		//	frame.pSample->GetDesc(&desc);
-		//	switch (desc.Format)
-		//	{
-		//	case D3DFMT_YUY2:
-		//	case D3DFMT_I420:
-		//		break;
-		//	default:
-		//		return; // format not supported
-		//	}
-		//}
+		// feed to loopback pipelines
+		FeedToSink(frame);
 	
 	}
 
-	// IDeviceEventCallback. This callback is response to WM_DEVICECHANGE, so don't do much thing here
-	void OnVideoCapDevChanged (UINT nEventType, DWORD_PTR dwData  )
-	{
-		DEV_BROADCAST_HDR *pHdr = (DEV_BROADCAST_HDR *)dwData;
-		if(!pHdr) return;
-		if (pHdr->dbch_devicetype != DBT_DEVTYP_DEVICEINTERFACE ) return ;
-
-		DEV_BROADCAST_DEVICEINTERFACE *pDi = (DEV_BROADCAST_DEVICEINTERFACE *)dwData;
-		std::wstring  name = &pDi->dbcc_name[0];
-		switch (nEventType)
-		{
-		case DBT_DEVICEARRIVAL://   A device has been inserted and is now available.
-			// fire the event to GUI
-			break;
-		case DBT_DEVICEQUERYREMOVE://   Permission to remove a device is requested. 
-			break;
-		case DBT_DEVICEQUERYREMOVEFAILED://   Request to remove a device has been canceled.
-			break;
-		case DBT_DEVICEREMOVEPENDING ://  Device is about to be removed. Cannot be denied.
-			break;
-		case DBT_DEVICEREMOVECOMPLETE ://  Device has been removed.
-			// fire the event to GUI
-			break;
-		case DBT_DEVICETYPESPECIFIC ://  Device-specific event.
-			break;
-		case DBT_CONFIGCHANGED ://  Current configuration has changed.
-			break;
-		}
-	}
 
 	vector<MediaDevInfo> GetCameraList()
 	{
@@ -133,12 +104,43 @@ public:
 	{
 		vidCap_->CloseCamera();
 	}
+
 private:
+
+	bool FeedToSink(VideoFrameInfo & frame)
+	{
+		WinRTCSDK::AutoLock l (m_lock);
+		int n = m_SinkList.size();
+		for (  int i=0; i<n; i++)
+		{
+			m_SinkList[i]->PutSurface(frame);
+		}
+
+		return true;
+	}
+
+private:
+
+	WinRTCSDK::Mutex m_lock;
+	std::vector<ICameraSink*> m_SinkList;
+
 	D3D9Renderer     render_;
 	MFVidCapture    *vidCap_;
-	DeviceEvents    *deviceEvents_;
 	BaseWnd         *videoWindow_ ;
 	int width_;
 	int height_;
 
 };
+
+INT messagePump();
+int testCamera()
+{
+	Camera cam(1280,720);
+	cam.Init();
+	vector<MediaDevInfo> devList = cam.GetCameraList();
+	cam.OpenCamera(devList[0].symbolicLink);
+	messagePump();
+	cam.CloseCamera();
+	cam.UnInit();
+	return 0;
+}
