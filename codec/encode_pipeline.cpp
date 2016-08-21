@@ -61,9 +61,13 @@ mfxStatus CEncTaskPool::SynchronizeFirstTask()
         {
             m_statFile.StartTimeMeasurement();
 
-			if (m_pWriter)
-			{
-				sts = m_pWriter->WriteNextFrame(&m_pTasks[m_nTaskBufferStart].mfxBS);
+			if ( m_pBitstreamSink ){ // loopback test
+				m_pBitstreamSink->PutBittream(&m_pTasks[m_nTaskBufferStart].mfxBS);
+			}else{
+				if (m_pWriter)
+				{
+					sts = m_pWriter->WriteNextFrame(&m_pTasks[m_nTaskBufferStart].mfxBS);
+				}
 			}
 
             m_statFile.StopTimeMeasurement();
@@ -253,8 +257,6 @@ CEncodingPipeline::CEncodingPipeline()
     m_pMFXAllocator = NULL;
     m_pEncSurfaces = NULL;
 
-    m_FileWriter  = NULL;
-
     MSDK_ZERO_MEMORY(m_CodingOption);
     m_CodingOption.Header.BufferId = MFX_EXTBUFF_CODING_OPTION;
     m_CodingOption.Header.BufferSz = sizeof(m_CodingOption);
@@ -285,15 +287,16 @@ mfxStatus CEncodingPipeline::Init(EncInitParams *pParams, MP::IDXVAVideoProcesso
 
     mfxStatus sts = MFX_ERR_NONE;
 
-    // prepare input file reader
-    sts = m_FileReader.Init(pParams->strSrcFile, MFX_FOURCC_YV12 , 1, std::vector<msdk_char*>());
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+    // prepare input/output files
+	if (! m_Params.bLoopBack)
+	{
+		sts = m_FileReader.Init(pParams->strSrcFile, MFX_FOURCC_YV12 , 1, std::vector<msdk_char*>());
+		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-	// prepare output file writer
-    m_FileWriter = new CSmplBitstreamWriter;
-    MSDK_CHECK_POINTER(m_FileWriter, MFX_ERR_MEMORY_ALLOC);
-    sts = (m_FileWriter)->Init( pParams->strDstFile);
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+		// prepare output file writer
+		sts = m_FileWriter.Init( pParams->strDstFile);
+		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+	}
 
 	// prepare session param
     mfxInitParam initPar;
@@ -344,12 +347,12 @@ mfxStatus CEncodingPipeline::Init(EncInitParams *pParams, MP::IDXVAVideoProcesso
 
 void CEncodingPipeline::Close()
 {
-    if (m_FileWriter)
-    {
-        msdk_printf(MSDK_STRING("Frame number: %u\r\n"), m_FileWriter->m_nProcessedFramesNum);
+	if(!m_Params.bLoopBack)
+	{
+        msdk_printf(MSDK_STRING("Frame number: %u\r\n"), m_FileWriter.m_nProcessedFramesNum);
         mfxF64 ProcDeltaTime = m_statOverall.GetDeltaTime() - m_statFile.GetDeltaTime() - m_TaskPool.GetFileStatistics().GetDeltaTime();
-        msdk_printf(MSDK_STRING("Encoding fps: %.0f"), m_FileWriter->m_nProcessedFramesNum / ProcDeltaTime);
-    }
+        msdk_printf(MSDK_STRING("Encoding fps: %.0f"), m_FileWriter.m_nProcessedFramesNum / ProcDeltaTime);
+	}
 
     MSDK_SAFE_DELETE(m_pmfxENC);
 
@@ -360,11 +363,11 @@ void CEncodingPipeline::Close()
     m_TaskPool.Close();
     m_mfxSession.Close();
 
-    m_FileReader.Close();
-
-    if (m_FileWriter)
-        m_FileWriter->Close();
-    MSDK_SAFE_DELETE(m_FileWriter);
+	if(!m_Params.bLoopBack)
+	{
+		m_FileReader.Close();
+		m_FileWriter.Close();
+	}
 
 }
 
@@ -399,7 +402,7 @@ mfxStatus CEncodingPipeline::ResetMFXComponents(EncInitParams* pParams)
 	// now init the task pool
     mfxU32 nEncodedDataBufferSize = m_mfxEncParams.mfx.FrameInfo.Width * m_mfxEncParams.mfx.FrameInfo.Height * 4;
     
-	sts = m_TaskPool.Init(&m_mfxSession, m_FileWriter,m_pBitstreamSink,
+	sts = m_TaskPool.Init(&m_mfxSession, &m_FileWriter,m_pBitstreamSink,
 		m_mfxEncParams.AsyncDepth, nEncodedDataBufferSize);
 
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
@@ -475,6 +478,8 @@ mfxStatus CEncodingPipeline::Run()
 bool  CEncodingPipeline::Input (void * pSurface/*d3d9surface*/)
 {
 	if ( !m_Params.bLoopBack) return false; // not in loopback mode, data is input from a file
+	if (!pSurface) return false;
+	if ( !m_pDXVAProcessor) return false;
 
 	MP::VideoFrameData src;
 	MP::VideoFrameData dst;
@@ -482,24 +487,30 @@ bool  CEncodingPipeline::Input (void * pSurface/*d3d9surface*/)
 	src.pSurface = pSurface;
 
 	mfxU16 nEncSurfIdx =MSDK_INVALID_SURF_IDX;
-	if ( !m_Params.bLoopBack)
-	{ // not in loopback mode, data is input from a file
 
-		// find free surface for encoder input
-		mfxU16 nEncSurfIdx = GetFreeSurface(m_pEncSurfaces, m_EncResponse.NumFrameActual);
-		MSDK_CHECK_ERROR(nEncSurfIdx, MSDK_INVALID_SURF_IDX, MFX_ERR_MEMORY_ALLOC);
+	// find free surface for encoder input
+	nEncSurfIdx = GetFreeSurface(m_pEncSurfaces, m_EncResponse.NumFrameActual);
+	if (nEncSurfIdx == MSDK_INVALID_SURF_IDX) return false;
 
-		mfxFrameSurface1* pSurf = NULL; // dispatching pointer
-		// point pSurf to encoder surface
-		pSurf = &m_pEncSurfaces[nEncSurfIdx];
-	}
+	mfxFrameSurface1* pSurf = NULL; // dispatching pointer
+	// point pSurf to encoder surface
+	pSurf = &m_pEncSurfaces[nEncSurfIdx];
 
 	dst.type = MP::MFX_FRAME_SURFACE;
-	dst.pSurface = pSurface;
+	dst.pSurface = pSurf;
 
+	bool ret = m_pDXVAProcessor->videoProcessBlt(&src, &dst);
+		m_ReadyQueue.put(nEncSurfIdx);
+	if (ret){ // add surface to ready queue
 
-
+	}
 	return true;
+}
+	
+void  CEncodingPipeline::Stop ()
+{ 
+	m_ReadyQueue.put(0);
+	m_StopFlag = true;
 }
 
 mfxU16  CEncodingPipeline::GetNextSurface ()
@@ -509,7 +520,7 @@ mfxU16  CEncodingPipeline::GetNextSurface ()
 	{ // not in loopback mode, data is input from a file
 
 		// find free surface for encoder input
-		mfxU16 nEncSurfIdx = GetFreeSurface(m_pEncSurfaces, m_EncResponse.NumFrameActual);
+		nEncSurfIdx = GetFreeSurface(m_pEncSurfaces, m_EncResponse.NumFrameActual);
 		MSDK_CHECK_ERROR(nEncSurfIdx, MSDK_INVALID_SURF_IDX, MFX_ERR_MEMORY_ALLOC);
 
 		mfxFrameSurface1* pSurf = NULL; // dispatching pointer
@@ -529,13 +540,9 @@ mfxU16  CEncodingPipeline::GetNextSurface ()
 	}
 	else // loopback mode
 	{
-		// dequeue one surface from the ready queue
-		if ( m_ReadyQueue.empty() ==false)
-		{
-			WinRTCSDK::AutoLock l (m_lock);
-			nEncSurfIdx = m_ReadyQueue.front();
-			m_ReadyQueue.pop();
-		}
+		// dequeue one surface from the ready queue.
+		// and it is a blockingqueue, so calling thread may be blocked
+		m_ReadyQueue.get(nEncSurfIdx);
 	
 	}
 
@@ -569,6 +576,10 @@ mfxStatus CEncodingPipeline::RunEncoding()
 		//////////////////////////////////////////////////
 		// Get next frame to encode
         nEncSurfIdx = GetNextSurface();
+
+		// a fake item in blocking queue may be used to unblock this thread!
+		if ( m_StopFlag ) break; // stop the loop
+
         MSDK_CHECK_ERROR(nEncSurfIdx, MSDK_INVALID_SURF_IDX, MFX_ERR_MEMORY_ALLOC);
 
 

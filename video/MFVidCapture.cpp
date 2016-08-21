@@ -298,14 +298,6 @@ HRESULT MFVidCapture::_CreateSourceReader ()
 
     // Create an attribute store to hold initialization settings.
 	int n = 4;
-	bool bDXVA = false;
-	if ( asyncMode_ == false ){
-		n--;
-	}
-
-	if ( bDXVA == false ){
-		n--;
-	}
 
 	hr = MFCreateAttributes(&pAttributes, n);
     if (FAILED(hr)) return hr;
@@ -321,7 +313,7 @@ HRESULT MFVidCapture::_CreateSourceReader ()
     if (FAILED(hr)) return hr;
 	
 	// enable DXVA
-	if ( pD3DManager_&&bDXVA ){
+	if ( pD3DManager_ ){
 		hr = pAttributes->SetUnknown(MF_SOURCE_READER_D3D_MANAGER, (IUnknown*)pD3DManager_);
 	    if (FAILED(hr)) return hr;
 	} 

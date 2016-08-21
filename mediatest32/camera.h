@@ -33,7 +33,7 @@ public:
 
 		// camera using DXVA now
 		vidCap_ = new MFVidCapture(this);
-
+		vidCap_->SetD3DDevManager(render_.GetD3DDeviceManager9("testvid"));
 
 		return true;
 		
@@ -73,7 +73,6 @@ public:
 	{
 		bool ret;
 		HRESULT hr;
-		D3DSURFACE_DESC desc;
 
 		static int cnt = 0;
 		cnt++;
@@ -82,10 +81,10 @@ public:
 			&& frame.image == NULL) return;
 
 		// draw preview
-		render_.DrawVideo("testvid", frame);
+		hr = render_.DrawVideo("testvid", frame);
 
 		// feed to loopback pipelines
-		FeedToSink(frame);
+		ret = FeedToSink(frame);
 	
 	}
 
@@ -132,15 +131,3 @@ private:
 
 };
 
-INT messagePump();
-int testCamera()
-{
-	Camera cam(1280,720);
-	cam.Init();
-	vector<MediaDevInfo> devList = cam.GetCameraList();
-	cam.OpenCamera(devList[0].symbolicLink);
-	messagePump();
-	cam.CloseCamera();
-	cam.UnInit();
-	return 0;
-}

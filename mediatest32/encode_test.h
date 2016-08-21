@@ -15,7 +15,7 @@ using namespace MP;
 class  EncodeTest
 {
 public:
-	EncodeTest ():dispatcher_("DecodeTest"),params_(),pipeline_(), processor_(NULL)
+	EncodeTest ():dispatcher_("EncodeTest"),params_(),pipeline_(), processor_(NULL)
 	{
 	}
 
@@ -28,7 +28,7 @@ public:
 
 		// default implementation
 		params_.bUseHWLib = true;
-		params_.nAsyncDepth = 4;
+		params_.nAsyncDepth = 1;
 		params_.nGopRefDist=1;
 		params_.CodecId = MFX_CODEC_AVC;
 		params_.nTargetUsage = MFX_TARGETUSAGE_BALANCED;
@@ -59,6 +59,10 @@ public:
 	}
 
 
+	void Input (void * pSurface/*d3d9surface*/)
+	{
+		pipeline_.Input(pSurface);
+	}
 
 	void Start ()
 	{

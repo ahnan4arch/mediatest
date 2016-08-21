@@ -34,7 +34,7 @@ using namespace MP;
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-
-
+	LoopbackTestUI maindlg(IDD_MAIN);
+	maindlg.Run();
 }
 

@@ -43,6 +43,7 @@ public:
 			CopyBitstream(&pool_[buffId], bs );
 			buffering_.enqueue(buffId);
 		}
+		return ret;
 	}
 	
 	//IBitstreamSource, for consumer
@@ -51,9 +52,10 @@ public:
 		int buffId;
 		bool ret = buffering_.acquire(60*1000, buffId);
 		if (ret){
-			CopyBitstream(bs, &pool_[buffId] );
+			CopyBitstream2(bs, &pool_[buffId] );
 			buffering_.release(buffId);
 		}
+		return ret;
 	}
 
 	// unblock both consumer and producer thread
@@ -67,8 +69,37 @@ private:
 	{
 		// we assume every BS just contain one frame data, so offset is always 0
 		memcpy_s(dst->Data, dst->MaxLength, src->Data, src->DataLength);
-
+		dst->DataLength = src->DataLength;
 		dst->DataOffset = 0;
+	}
+
+	mfxStatus CopyBitstream2(mfxBitstream *dest, mfxBitstream *src)
+	{
+		if (!dest || !src)
+			return MFX_ERR_NULL_PTR;
+
+		if (!dest->DataLength)
+		{
+			dest->DataOffset = 0;
+		}
+		else
+		{
+			memmove(dest->Data, dest->Data + dest->DataOffset, dest->DataLength);
+			dest->DataOffset = 0;
+		}
+
+		if (src->DataLength > dest->MaxLength - dest->DataLength - dest->DataOffset)
+			return MFX_ERR_NOT_ENOUGH_BUFFER;
+
+		MSDK_MEMCPY_BITSTREAM(*dest, dest->DataOffset, src->Data, src->DataLength);
+		dest->DataLength = src->DataLength;
+
+		dest->DataFlag = src->DataFlag;
+
+		//common Extended buffer will be for src and dest bit streams
+		dest->EncryptedData = src->EncryptedData;
+
+		return MFX_ERR_NONE;
 	}
 
 private:

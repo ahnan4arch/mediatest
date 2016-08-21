@@ -18,16 +18,18 @@ public:
 	
 	void Init(int viewWidth, int viewHeight, IBitstreamSource* pBSSource)
 	{
+		WCHAR title [128];
 		pBSSource_ = pBSSource;
-		render_ = new DXVARender(viewWidth,viewHeight);
+		wsprintf(title, L"Decode %dx%d - d3drender", viewWidth, viewHeight);
+		render_ = new DXVARender(viewWidth,viewHeight, title);
 		render_->Init();
 
 		params_.bLoopback = true;
 
 		params_.bUseHWLib = true;
 		params_.videoType = MFX_CODEC_AVC;
-		params_.nAsyncDepth = 5;
-		params_.nMaxFPS=40;
+		params_.nAsyncDepth = 2;
+		params_.nMaxFPS=5;
 		wcscpy_s(params_.strSrcFile, L"d:\\test_dec.h264");
 		wcscpy_s(params_.strDstFile, L"d:\\test_dec.nv12");
 	}
@@ -65,7 +67,7 @@ private:
 		msdk_printf(MSDK_STRING("Decoding started\n"));
 
 		
-		mfxStatus sts = pipeline_.Init(&params_, render_);
+		mfxStatus sts = pipeline_.Init(&params_, render_, pBSSource_);
 		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, 1);
 
 		// print stream info

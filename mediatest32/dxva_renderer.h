@@ -12,13 +12,13 @@ using namespace MP;
 class DXVARender : public MP::IDXVAVideoRender
 {
 public:
-	DXVARender(int w, int h):render_(),width_(w),height_(h)
+	DXVARender(int w, int h, std::wstring title):render_(),width_(w),height_(h),title_(title)
 	{
 	}
 	bool Init()
 	{
 		videoWindow_ = new BaseWnd(TRUE);
-		videoWindow_->Create(0, L"DUMMYD3DRENDER", WS_OVERLAPPEDWINDOW, 0, 0, width_, height_, NULL, 0, NULL);
+		videoWindow_->Create(0, title_.c_str(), WS_OVERLAPPEDWINDOW, 0, 0, width_, height_, NULL, 0, NULL);
 		::ShowWindow(*videoWindow_, SW_SHOW);
 
 		render_.Create();
@@ -62,6 +62,7 @@ private:
 	D3D9Renderer render_;
 	BaseWnd * videoWindow_ ;
 	D3DFrameAllocator * allocator_;
+	std::wstring title_;
 	int width_;
 	int height_;
 

@@ -12,6 +12,7 @@
 #include "autolock.h"
 #include "va_interface.h"
 #include "bitstream_if.h"
+#include "BlockingQueue.h"
 
 #include "mfxmvc.h"
 #include "mfxvideo.h"
@@ -121,7 +122,7 @@ public:
     mfxStatus ResetMFXComponents(EncInitParams* pParams);
     void      PrintInfo();
 	bool      Input (void * pSurface/*d3d9surface*/); 
-	void      Stop () { m_StopFlag = true;}
+	void      Stop () ;
 private:
 
 	mfxStatus RunEncoding();
@@ -135,7 +136,8 @@ private:
 private:
 
 	IBitstreamSink *          m_pBitstreamSink;
-    CSmplBitstreamWriter *    m_FileWriter;
+
+    CSmplBitstreamWriter      m_FileWriter;
     CSmplYUVReader            m_FileReader;
     CEncTaskPool              m_TaskPool;
 
@@ -147,7 +149,7 @@ private:
     mfxFrameAllocResponse         m_EncResponse;  // memory allocation response for encoder
     mfxFrameAllocator*            m_pMFXAllocator;
 
-	std::queue<mfxU16>            m_ReadyQueue; //a queue of indices of mfxFrameSurface1* in m_pEncSurfaces, 
+	WinRTCSDK::BlockingQueue<mfxU16>  m_ReadyQueue; //a queue of indices of mfxFrameSurface1* in m_pEncSurfaces, 
 	WinRTCSDK::Mutex              m_lock;
 
 	/////////////////////////////

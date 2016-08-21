@@ -92,7 +92,7 @@ public:
     CDecodingPipeline();
     ~CDecodingPipeline();
 	mfxStatus Run();
-    mfxStatus Init(DecInitParams *pParams, MP::IDXVAVideoRender* pRender);
+    mfxStatus Init(DecInitParams *pParams, MP::IDXVAVideoRender* pRender, IBitstreamSource* pBSSoure);
     mfxStatus RunDecoding();
     void Close();
     mfxStatus ResetDecoder(DecInitParams *pParams);
@@ -118,8 +118,9 @@ protected: // functions
 	mfxStatus  syncOutSurface ( int waitTime);
 
 protected: // variables
+	IBitstreamSource      * m_pBitStreamSource; 
     CSmplYUVWriter          m_FileWriter;
-    std::auto_ptr<CSmplBitstreamReader>  m_FileReader;
+    CH264FrameReader        m_FileReader;
     mfxBitstream            m_mfxBS; // contains encoded data
 
     MFXVideoSession         m_mfxSession;

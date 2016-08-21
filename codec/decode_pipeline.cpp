@@ -46,7 +46,7 @@ CDecodingPipeline::~CDecodingPipeline()
     Close();
 }
 
-mfxStatus CDecodingPipeline::Init(DecInitParams *pParams, MP::IDXVAVideoRender* pRender)
+mfxStatus CDecodingPipeline::Init(DecInitParams *pParams, MP::IDXVAVideoRender* pRender,IBitstreamSource* pBSSoure)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
 	m_Params=*pParams;
@@ -55,13 +55,14 @@ mfxStatus CDecodingPipeline::Init(DecInitParams *pParams, MP::IDXVAVideoRender* 
 	m_pRender = pRender;
 	m_StopFlag = false;
     mfxStatus sts = MFX_ERR_NONE;
+	// bit stream source for loopback mode
+	m_pBitStreamSource = pBSSoure;
 
     // prepare input stream file reader
     switch (m_Params.videoType)
     {
     case MFX_CODEC_HEVC:
     case MFX_CODEC_AVC:
-        m_FileReader.reset(new CH264FrameReader());
         m_bPrintLatency = true;
         break;
     default:
@@ -72,8 +73,11 @@ mfxStatus CDecodingPipeline::Init(DecInitParams *pParams, MP::IDXVAVideoRender* 
     m_nMaxFps = m_Params.nMaxFPS;
     m_nFrames =  MFX_INFINITE;
 
-    sts = m_FileReader->Init(m_Params.strSrcFile);
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+	if(!m_Params.bLoopback)
+	{
+		sts = m_FileReader.Init(m_Params.strSrcFile);
+		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+	}
 
     mfxInitParam initPar;
     mfxVersion version;     // real API version with which library is initialized
@@ -133,8 +137,12 @@ mfxStatus CDecodingPipeline::Init(DecInitParams *pParams, MP::IDXVAVideoRender* 
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
        
     // prepare YUV file writer
-    sts = m_FileWriter.Init(m_Params.strDstFile, 1);
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+	if(!m_Params.bLoopback)
+	{
+
+		sts = m_FileWriter.Init(m_Params.strDstFile, 1);
+		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+	}
 
 	// set device handle
 	mfxHDL hdl = (mfxHDL)m_pRender->getHandle();
@@ -173,11 +181,11 @@ void CDecodingPipeline::Close()
     DeleteFrames();
 
     m_mfxSession.Close();
-    m_FileWriter.Close();
-    if (m_FileReader.get()){
-        m_FileReader->Close();
+	if(!m_Params.bLoopback)
+	{
+	    m_FileWriter.Close();
+        m_FileReader.Close();
 	}
-
     return;
 }
 
@@ -185,7 +193,7 @@ mfxStatus CDecodingPipeline::InitMfxParams(DecInitParams *pParams)
 {
     MSDK_CHECK_POINTER(m_pmfxDEC, MFX_ERR_NULL_PTR);
     mfxStatus sts = MFX_ERR_NONE;
-
+	bool ret;
     while(true)
     {
         // parse bit stream and fill mfx params
@@ -199,7 +207,15 @@ mfxStatus CDecodingPipeline::InitMfxParams(DecInitParams *pParams)
                 MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
             }
             // read a portion of data
-            sts = m_FileReader->ReadNextFrame(&m_mfxBS);
+			if (m_Params.bLoopback) // loopback mode ge bitstream from IBitStreamSource
+			{
+				ret = m_pBitStreamSource->GetBittream(&m_mfxBS);
+				if (ret ) sts = MFX_ERR_NONE;
+			}
+			else
+			{
+				sts = m_FileReader.ReadNextFrame(&m_mfxBS);
+			}
             if (MFX_ERR_MORE_DATA == sts &&
                 !(m_mfxBS.DataFlag & MFX_BITSTREAM_EOS))
             {
@@ -305,12 +321,16 @@ void CDecodingPipeline::DeleteFrames()
 	m_SurfaceMap.clear();
 
 	// delete IO pool
-	delete []m_IOSurfacePool;
+	if (m_IOSurfacePool){
+		delete []m_IOSurfacePool;
+		m_IOSurfacePool = NULL;
+	}
 
     // delete frames
-	mfxFrameAllocator* pAlloc = (mfxFrameAllocator*) m_pRender->getFrameAllocator();
-    pAlloc->Free(pAlloc->pthis, &m_mfxResponse);
-
+	if ( m_pRender){
+		mfxFrameAllocator* pAlloc = (mfxFrameAllocator*) m_pRender->getFrameAllocator();
+		pAlloc->Free(pAlloc->pthis, &m_mfxResponse);
+	}
     return;
 }
 
@@ -356,17 +376,21 @@ mfxStatus CDecodingPipeline::DeliverOutput(mfxFrameSurface1* frame)
     if (!frame) {
         return MFX_ERR_NULL_PTR;
     }
-    // alloc frames for decoder
-	//mfxFrameAllocator* pAlloc = (mfxFrameAllocator*) m_pRender->getFrameAllocator();
- //   res = pAlloc->Lock(pAlloc->pthis, frame->Data.MemId, &(frame->Data));
- //   if (MFX_ERR_NONE == res) {
- //       res = m_FileWriter.WriteNextFrame(frame);
- //       sts = pAlloc->Unlock(pAlloc->pthis, frame->Data.MemId, &(frame->Data));
- //   }
- //   if ((MFX_ERR_NONE == res) && (MFX_ERR_NONE != sts)) {
- //       res = sts;
- //   }
-    //res = m_hwdev->RenderFrame(frame, m_pFrameAllocator);
+	
+	// dump YUV data 
+	if ( false)
+	{
+		mfxFrameAllocator* pAlloc = (mfxFrameAllocator*) m_pRender->getFrameAllocator();
+		res = pAlloc->Lock(pAlloc->pthis, frame->Data.MemId, &(frame->Data));
+		if (MFX_ERR_NONE == res) {
+			res = m_FileWriter.WriteNextFrame(frame);
+			sts = pAlloc->Unlock(pAlloc->pthis, frame->Data.MemId, &(frame->Data));
+		}
+		if ((MFX_ERR_NONE == res) && (MFX_ERR_NONE != sts)) {
+			res = sts;
+		}
+	}
+
 	MP::VideoFrameData vidframe;
 	vidframe.pSurface = frame;
 	vidframe.type = MP::MFX_FRAME_SURFACE;
@@ -527,7 +551,7 @@ mfxStatus  CDecodingPipeline::syncOutSurface ( int waitTime)
 		int time_to_sleep = (int)(1000 * ((double)m_output_count / m_nMaxFps - currentTime));
 		if (time_to_sleep > 0)
 		{
-			MSDK_SLEEP(time_to_sleep);
+//			MSDK_SLEEP(time_to_sleep);
 		}
 	}
 
@@ -584,7 +608,13 @@ mfxStatus CDecodingPipeline::RunDecoding()
         if (pBitstream && ((MFX_ERR_MORE_DATA == sts) || (0==pBitstream->DataLength))) 
 		{
             CAutoTimer timer_fread(m_tick_fread);
-            mfxStatus status_read = m_FileReader->ReadNextFrame(pBitstream); // read more data to input bit stream
+			mfxStatus status_read = MFX_ERR_NONE;
+			if (!m_Params.bLoopback){
+	             status_read= m_FileReader.ReadNextFrame(pBitstream); // read more data to input bit stream
+			}else{
+				// get bitstream from bitstream source ( loopback)
+				m_pBitStreamSource->GetBittream(pBitstream);
+			}
             if (MFX_ERR_MORE_DATA == status_read) {
 				pBitstream = NULL;
             } else if (MFX_ERR_NONE != status_read) {
@@ -621,6 +651,7 @@ mfxStatus CDecodingPipeline::RunDecoding()
                         break;
                     }
                 }
+				::Sleep(2);// Yeild CPU time
                 // note: MFX_WRN_IN_EXECUTION will also be treated as an error at this point
                 continue;
             }
@@ -646,6 +677,8 @@ mfxStatus CDecodingPipeline::RunDecoding()
 				switch (sync_sts)
 				{
 				case MFX_ERR_NONE:
+					::Sleep(0);// Yeild CPU time
+
 				case MFX_ERR_MORE_DATA:
 					sts = MFX_WRN_DEVICE_BUSY;
 					break;

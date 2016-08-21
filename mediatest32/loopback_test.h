@@ -32,6 +32,7 @@ public:
 	{
 		decodeTest_.Start();
 		encodeTest_.Start();
+		return true;
 	}
 
 	bool Stop()
@@ -57,8 +58,10 @@ public:
 	}
 
 public:
+	// ICameraSink
 	virtual bool PutSurface (VideoFrameInfo & frame)
 	{
+		encodeTest_.Input(frame.pSample);
 		return true;
 	}
 
@@ -72,16 +75,17 @@ private:
 class LoopbackTest
 {
 public:
-	LoopbackTest ():camera_(1280,720)
+	LoopbackTest (  Camera & cam):camera_(cam)
 	{
 	}
 	~LoopbackTest() {}
 
 	bool Init()
 	{
-		camera_.Init();
 		processor_ = new DXVAProcessor(camera_.GetDeviceManager());
 		processor_->Init();
+		processor1_ = new DXVAProcessor(camera_.GetDeviceManager());
+		processor1_->Init();
 		return true;
 	}
 
@@ -89,66 +93,125 @@ public:
 	{
 		processor_->UnInit();
 		delete processor_;
-		camera_.UnInit();
+		processor1_->UnInit();
+		delete processor1_;
 		return true;
 	}
 
 	bool StartLoopbackMax()
 	{
+		StartLoopbackPipeline(processor_, loopback_max_, 1280, 720, 5, 1);
+		StartLoopbackPipeline(processor_, loopback_360p_, 1280, 720, 5, 1);
+		StartLoopbackPipeline(processor_, loopback_180p_, 1280, 720, 5, 1);
+		return true;
 	}
+	
+	bool StopLoopbackMax()
+	{
+		return StopLoopbackPipeline(loopback_max_);
+		return StopLoopbackPipeline(loopback_360p_);
+		return StopLoopbackPipeline(loopback_180p_);
+	}
+
+	//bool StartLoopback360p()
+	//{
+	//}
+	//
+	//bool StopLoopback360p()
+	//{
+	//}
+
+private:
+	bool StartLoopbackPipeline(DXVAProcessor* processor, LoopbackPipeline& pipeline, int w, int h, int frN, int frD)
+	{
+		pipeline.Init(processor, w, h, frN, frD);
+		pipeline.Start();
+		camera_.AddSink(&pipeline);
+		return true;
+	}
+
+	bool StopLoopbackPipeline(LoopbackPipeline& pipeline)
+	{
+		camera_.RemoveSink(&pipeline);
+		pipeline.Stop();
+		pipeline.UnInit();
+		return true;
+	}
+
 
 private:
 	LoopbackPipeline loopback_max_;
 	LoopbackPipeline loopback_360p_;
 	LoopbackPipeline loopback_180p_;
-
-	Camera           camera_;
+	Camera &camera_;
 	DXVAProcessor*   processor_;
+	DXVAProcessor*   processor1_;
 };
 
 static std::map<HWND, void *> _hwnd_obj_map;// map HWND to an object
-
+#define UserMsg_DevChanged WM_USER + 1
 class LoopbackTestUI : public IDeviceEventCallback
 {
 public:
-	LoopbackTestUI (DWORD dialogId)
+	LoopbackTestUI (DWORD dialogId):
+		camera_(1280,720), 
+		loopbackTest_(camera_)
 	{
 		dialogId_ = dialogId;
 	}
 
+	~LoopbackTestUI(){
+		if (hDlg_)::DestroyWindow(hDlg_);
+	}
+
 	void Run()
 	{
-		hDlg_ = ::CreateDialogParam(NULL, MAKEINTRESOURCE(dialogId_), NULL, DialogProcThunk, (LPARAM)this);
-		if (hDlg_){
+		::CreateDialogParam(NULL, MAKEINTRESOURCE(dialogId_), NULL, DialogProcThunk, (LPARAM)this);
+
+		if (hDlg_){ // hDlg_ is set in the WM_INITDIALOG message!
 			::ShowWindow(hDlg_, SW_SHOW);
 
 			// enter message pump
-			messagePump();
+			MSG msg;
+			while(::GetMessage(&msg, NULL, 0, 0))
+			{
+				if (! ::IsDialogMessage(hDlg_, &msg))
+				{
+					::TranslateMessage(&msg);
+					::DispatchMessage(&msg);
+				}
+			}
 		}
 	}
 
 
 private:
-	INT messagePump()
-	{
-		MSG msg;
-		while(::GetMessage(&msg, NULL, 0, 0))
-		{
-			::TranslateMessage(&msg);
-			::DispatchMessage(&msg);
-		}
-		return 0;
-	}
 
 	// thiscall version
 	INT_PTR  DialogProc( HWND   hwndDlg,UINT   uMsg,  WPARAM wParam, LPARAM lParam)
 	{
 		switch (uMsg){
+		case UserMsg_DevChanged: // user defined message
+			FillCamList();
+			break;
 		case WM_INITDIALOG: // store this pointer on this message
+			hDlg_ = hwndDlg; // must init memeber here!
 			Init();
 			break;
-		default:
+		case WM_CLOSE:
+			UnInit();
+			::PostQuitMessage(0);//End message pump
 			break;
+		case WM_COMMAND :
+			if ( LOWORD( wParam) == IDC_CAMLIST){
+				if ( HIWORD(wParam) == CBN_SELCHANGE){
+					ChooseCamera();
+					loopbackTest_.StartLoopbackMax();
+				}
+			}
+			break;
+		default:
+			return FALSE;
 		}
 		return TRUE;
 	}
@@ -164,23 +227,61 @@ private:
 		default:
 			break;
 		}
-		pThis = (LoopbackTestUI *)_hwnd_obj_map[hwndDlg] ;
-
-		return pThis->DialogProc(hwndDlg, uMsg, wParam, lParam);
+		if ( _hwnd_obj_map.find(hwndDlg) != _hwnd_obj_map.end())
+		{
+			pThis = (LoopbackTestUI *)_hwnd_obj_map[hwndDlg] ;
+			return pThis->DialogProc(hwndDlg, uMsg, wParam, lParam);
+		}else{
+			return FALSE;
+		}
 	}
 
 	void Init()
 	{
+		camera_.Init();
 		// device event manager
 		deviceEvents_ = new DeviceEvents(this);
 		deviceEvents_->Startup();
+		loopbackTest_.Init();
+		// fill combo
+		FillCamList();
 	}
 	
 	void UnInit()
 	{
+		deviceEvents_->Shutdown();
 		delete deviceEvents_;
+		camera_.UnInit();
+		loopbackTest_.UnInit();
 	}
 
+	void FillCamList()
+	{
+		HWND hCtrl = ::GetDlgItem(hDlg_, IDC_CAMLIST);
+		// clear items
+		ComboBox_ResetContent(hCtrl);
+		// update list
+		camList_ = camera_.GetCameraList();
+		for ( int i =0 ; i< camList_.size(); i++)
+		{
+			//camList_[i].devFriendlyName.c_str()
+			int idx= ComboBox_AddString(hCtrl,camList_[i].devFriendlyName.c_str());
+			ComboBox_SetItemData(hCtrl, idx, i); // store the camera idx
+		}
+		ComboBox_SetCurSel(hCtrl, 0);// select zero
+	}
+
+	void ChooseCamera()
+	{
+		// no camera
+		if (camList_.empty()) return;
+
+		HWND hCtrl = ::GetDlgItem(hDlg_, IDC_CAMLIST);
+		int idx = ComboBox_GetCurSel(hCtrl);
+		int camidx = ComboBox_GetItemData(hCtrl, idx);
+		camera_.CloseCamera();
+		camera_.OpenCamera(camList_[camidx].symbolicLink);
+	}
 public:
 	// IDeviceEventCallback. This callback is response to WM_DEVICECHANGE, so don't do much thing here
 	void OnVideoCapDevChanged (UINT nEventType, DWORD_PTR dwData  )
@@ -193,24 +294,26 @@ public:
 		std::wstring  name = &pDi->dbcc_name[0];
 		switch (nEventType)
 		{
-		case DBT_DEVICEARRIVAL://   A device has been inserted and is now available.
-			// fire the event to GUI
+		case DBT_DEVICEARRIVAL:
+			::PostMessage(hDlg_, UserMsg_DevChanged, 0, 0); // fire event to UI thread
 			break;
-		case DBT_DEVICEQUERYREMOVE://   Permission to remove a device is requested. 
-		case DBT_DEVICEQUERYREMOVEFAILED://   Request to remove a device has been canceled.
-		case DBT_DEVICEREMOVEPENDING ://  Device is about to be removed. Cannot be denied.
+		case DBT_DEVICEQUERYREMOVE:
+		case DBT_DEVICEQUERYREMOVEFAILED:
+		case DBT_DEVICEREMOVEPENDING :
 			break;
-		case DBT_DEVICEREMOVECOMPLETE ://  Device has been removed.
-			// fire the event to GUI
+		case DBT_DEVICEREMOVECOMPLETE :
+			::PostMessage(hDlg_, UserMsg_DevChanged, 0, 0); // fire event to UI thread
 			break;
-		case DBT_DEVICETYPESPECIFIC ://  Device-specific event.
+		case DBT_DEVICETYPESPECIFIC :
 			break;
-		case DBT_CONFIGCHANGED ://  Current configuration has changed.
+		case DBT_CONFIGCHANGED :
 			break;
 		}
 	}
 
 private:
+	Camera           camera_;
+	std::vector<MediaDevInfo> camList_;
 	LoopbackTest  loopbackTest_;
 	DeviceEvents    *deviceEvents_;
 	DWORD dialogId_;
